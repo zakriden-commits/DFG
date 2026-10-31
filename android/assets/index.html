@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#0d0f12" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>DENI ISLAM — 3D online</title>
+<link rel="stylesheet" href="styles.css" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="icon.png" />
+<link rel="apple-touch-icon" href="icon.png" />
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<!-- ================= LOADING ================= -->
+<div id="boot" class="screen">
+  <div class="boot-inner">
+    <div class="boot-logo">DENI<span>ISLAM</span></div>
+    <div class="boot-bar"><i id="bootFill"></i></div>
+    <div class="boot-txt" id="bootTxt">Загрузка города…</div>
+  </div>
+</div>
+
+<!-- ================= MENU ================= -->
+<div id="menu" class="screen hidden">
+  <div class="menu-vignette"></div>
+  <div class="menu-grain"></div>
+  <div class="menu-top">
+    <div class="menu-badge">18+ · криминальная драма</div>
+    <div class="menu-srv"><i class="dot"></i><span id="menuSrv">сервер DENI-ISLAM #1 · 2 места</span></div>
+  </div>
+  <div class="menu-center">
+    <div class="logo">
+      <div class="logo-line1">DENI</div>
+      <div class="logo-line2">ISLAM</div>
+      <div class="logo-sub">Суровый город · 3D онлайн · 2 игрока</div>
+    </div>
+    <div class="menu-btns">
+      <button class="btn big" data-act="play"><span class="bl">ИГРАТЬ</span><span class="bs">онлайн · 1 комната · 2 игрока</span></button>
+      <button class="btn" data-act="controls">УПРАВЛЕНИЕ</button>
+      <button class="btn" data-act="about">ОБ ИГРЕ</button>
+      <button class="btn ghost" data-act="reset">СБРОСИТЬ СОХРАНЕНИЕ</button>
+    </div>
+  </div>
+  <div class="menu-foot">
+    <div>Грабь банк · работай на улице · не попадайся</div>
+    <div class="menu-credit">v1.0 · сделано для двоих</div>
+  </div>
+</div>
+
+<!-- ================= HUD ================= -->
+<div id="hud" class="hidden">
+  <div class="hud-top">
+    <div class="card stats">
+      <div class="row">
+        <div class="ava" id="avaIcon">🎩</div>
+        <div class="who">
+          <div class="name" id="pName">ДЖЕНТЕЛЬМЕН</div>
+          <div class="money"><span id="money">$500</span></div>
+        </div>
+      </div>
+      <div class="bar hp"><i id="hpFill"></i><span id="hpTxt">100</span></div>
+      <div class="bar st"><i id="stFill"></i><span id="stTxt">100</span></div>
+      <div class="stars" id="stars"></div>
+    </div>
+    <div class="card netcard">
+      <div id="netStatus"><i class="dot"></i> ОФФЛАЙН</div>
+      <div id="voiceStatus" class="voice">🎙 голос: выкл</div>
+    </div>
+    <div class="topright">
+      <button class="iconbtn" id="btnPause">II</button>
+    </div>
+  </div>
+
+  <div class="jobline hidden" id="jobLine"></div>
+  <div class="prompt hidden" id="prompt"></div>
+  <div class="progress hidden" id="progress">
+    <div class="pbar"><i id="progressFill"></i></div>
+    <div class="ptxt" id="progressTxt">Взлом…</div>
+  </div>
+  <div class="crosshair" id="crosshair"><i></i><i></i><i></i><i></i></div>
+
+  <div class="hotbar" id="hotbar"></div>
+
+  <div class="touch-left" id="touchLeft">
+    <div class="stick" id="stick"><i class="knob" id="knob"></i></div>
+  </div>
+  <div class="touch-right" id="touchRight">
+    <button class="abtn fire" id="btnFire">ОГОНЬ</button>
+    <button class="abtn reload" id="btnReload">ПЕРЕ-<br>ЗАРЯД</button>
+    <button class="abtn run" id="btnRun">БЕГ</button>
+    <button class="abtn act" id="btnAct">ДЕЙСТВИЕ</button>
+    <button class="abtn inv" id="btnInv">🎒</button>
+    <button class="abtn jump" id="btnJump">↑</button>
+  </div>
+  <div class="hint-pc" id="hintPC">WASD — ход · мышь — обзор · ЛКМ — стрелять · E — действие · R — перезарядка · Shift — бег</div>
+  <div class="hitflash" id="hitflash"></div>
+  <div class="log" id="log"></div>
+</div>
+
+<!-- ================= MODALS ================= -->
+<div id="modal" class="screen hidden">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="modal-title" id="modalTitle">МАГАЗИН</div>
+      <div class="modal-sub" id="modalSub"></div>
+      <button class="iconbtn close" id="modalClose">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+
+<!-- ================= PAUSE ================= -->
+<div id="pause" class="screen hidden">
+  <div class="modal-card small">
+    <div class="modal-head"><div class="modal-title">ПАУЗА</div></div>
+    <div class="modal-body">
+      <button class="btn wide" data-pause="resume">ПРОДОЛЖИТЬ</button>
+      <button class="btn wide" data-pause="controls">УПРАВЛЕНИЕ</button>
+      <button class="btn wide" data-pause="save">СОХРАНИТЬ</button>
+      <button class="btn wide ghost" data-pause="exit">ВЫЙТИ В МЕНЮ</button>
+      <div class="pause-note">Микрофон отключается только при выходе из игры — как ты и просил.</div>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script src="bundle.js"></script>
+</body>
+</html>

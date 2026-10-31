@@ -1,0 +1,13 @@
+{
+  "name": "DENI ISLAM — 3D online",
+  "short_name": "DENI ISLAM",
+  "description": "Суровый город, банк, оружие и онлайн на двоих",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0c0e11",
+  "theme_color": "#0c0e11",
+  "icons": [
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

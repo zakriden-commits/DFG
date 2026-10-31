@@ -1,0 +1,6 @@
+node_modules/
+.venv-sign/
+.venv-ag/
+game/dist/
+build/deni-islam-unsigned.apk
+.DS_Store
