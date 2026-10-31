@@ -6,7 +6,7 @@ import { buildWorld } from './world.js';
 import { Npc } from './npc.js';
 import * as INV from './inventory.js';
 import { Sound } from './audio.js';
-import { Colliders, clamp, angleDiff, distXZ } from './util.js';
+import { Colliders, clamp, angleDiff, distXZ, loadTextureBank } from './util.js';
 import { isTouch, el } from './ui.js';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -91,6 +91,11 @@ export class Game {
     this.scene.add(new THREE.HemisphereLight(0xa8c4ff, 0x5b4a34, 0.65));
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.14));
 
+    // настоящие текстуры (если файлов нет — сцена нарисует их сама через canvas)
+    await loadTextureBank('assets/tex/', [
+      'asphalt', 'sidewalk', 'brick', 'plasterHouse', 'woodFloor', 'tile', 'marble', 'concrete',
+      'bankFacade', 'shopFacade', 'facadeA', 'facadeB', 'facadeC', 'facadeD', 'facadeE', 'facadeF',
+    ]);
     this.colliders = new Colliders();
     this.world = buildWorld(this.scene, this.colliders);
     this._spawnNpcs();
@@ -233,7 +238,7 @@ export class Game {
     };
     this.state = 'play';
     this.clock.getDelta();
-    this.sound.init(); this.sound.resume();
+    this.sound.init(); this.sound.resume(); this.sound.ambience?.(true);
 
     // view model
     this.viewRoot = new THREE.Group();
@@ -880,6 +885,7 @@ export class Game {
     this.alarmOn = true;
     this.world.alarmOn = true;
     this.sound.siren(true);
+    this.sound.radio?.();
     this.ui.toast('⚠ ТРЕВОГА! Полиция выехала', 'bad');
     this.ui.log('Сматывайся с места преступления');
     this.player.stars = Math.max(this.player.stars, 2);

@@ -21,5 +21,8 @@ const res = await esbuild.build({
   logLevel: 'info',
 });
 for (const f of ['index.html', 'styles.css', 'manifest.webmanifest', 'icon.png']) fs.copyFileSync(p(f), path.join(out, f));
+// реальные ассеты (текстуры + звук)
+const assetsSrc = p('assets');
+if (fs.existsSync(assetsSrc)) fs.cpSync(assetsSrc, path.join(out, 'assets'), { recursive: true });
 const size = fs.statSync(path.join(out, 'bundle.js')).size;
 console.log('bundle size', (size / 1024 / 1024).toFixed(2), 'MB');

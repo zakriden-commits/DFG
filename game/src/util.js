@@ -25,6 +25,37 @@ export const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 /* ---------- canvas textures ---------- */
 const texCache = new Map();
+/* Банк настоящих PNG-текстур (game/assets/tex): если файл найден — берём его,
+   иначе рисуем текстуру на canvas как раньше. */
+const TEX_BANK = new Map();
+
+export function loadTextureBank(base, names, timeoutMs = 8000) {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || typeof document === 'undefined' || typeof Image === 'undefined') {
+      return resolve(0);
+    }
+    if (!names.length) return resolve(0);
+    let left = names.length, ok = 0;
+    const finish = () => { clearTimeout(timer); resolve(ok); };
+    const timer = setTimeout(finish, timeoutMs);
+    let loader;
+    try { loader = new THREE.TextureLoader(); } catch (e) { return finish(); }
+    for (const name of names) {
+      try {
+        loader.load(`${base}${name}.png`, (t) => {
+          t.colorSpace = THREE.SRGBColorSpace;
+          t.wrapS = t.wrapT = THREE.RepeatWrapping;
+          t.anisotropy = 4;
+          TEX_BANK.set(name, t);
+          ok++;
+          if (--left === 0) finish();
+        }, undefined, () => { if (--left === 0) finish(); });
+      } catch (e) {
+        if (--left === 0) finish();
+      }
+    }
+  });
+}
 
 export function makeCanvas(w, h, draw) {
   const c = document.createElement('canvas');
@@ -35,6 +66,14 @@ export function makeCanvas(w, h, draw) {
 }
 
 export function tex(name, w, h, draw, rx = 1, ry = 1) {
+  const banked = TEX_BANK.get(name);
+  if (banked) {
+    const t = banked.clone();
+    t.needsUpdate = true;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(rx, ry);
+    return t;
+  }
   const key = name + rx + 'x' + ry;
   if (texCache.has(key)) return texCache.get(key);
   const c = makeCanvas(w, h, draw);

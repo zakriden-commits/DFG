@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 const root = path.resolve('dist');
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.json': 'application/json', '.webmanifest': 'application/manifest+json' };
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.jpg': 'image/jpeg' };
 const port = process.env.PORT || 3000;
 
 http.createServer((req, res) => {

@@ -105,7 +105,26 @@ def build_v1(entries, key, cert):
 
 
 # ---------------------------------------------------------------- zip writer
-def zip_build(items):
+ALIGN_ID = 0xD935          # extra-field id used by Android zipalign
+
+
+def align_extra(offset, name_len, align=4):
+    """Bytes of extra field needed so the entry DATA starts on an `align` boundary.
+
+    Android 11+ refuses APKs whose uncompressed resources.arsc is not 4-byte
+    aligned ("the file is corrupt" for the user), so this is mandatory.
+    """
+    base = offset + 30 + name_len + 0  # local header + file name
+    pad = (-base) % align
+    if pad == 0:
+        return b''
+    if pad < 4:                     # an extra-field record needs 4 bytes of header
+        pad += align
+    payload = b'\x00' * (pad - 4)
+    return struct.pack('<HH', ALIGN_ID, len(payload)) + payload
+
+
+def zip_build(items, align=4):
     """items: list of (name, data, stored_bool). Returns full zip bytes."""
     out = io.BytesIO()
     central = []
@@ -119,8 +138,11 @@ def zip_build(items):
             payload = co.compress(data) + co.flush()
             method, csize = 8, len(payload)
         offset = out.tell()
-        out.write(struct.pack('<IHHHHHIIIHH', 0x04034b50, 20, 0, method, 0, 0x21, crc, csize, len(data), len(nb), 0))
+        extra = align_extra(offset, len(nb), align) if stored else b''
+        out.write(struct.pack('<IHHHHHIIIHH', 0x04034b50, 20, 0, method, 0, 0x21,
+                              crc, csize, len(data), len(nb), len(extra)))
         out.write(nb)
+        out.write(extra)
         out.write(payload)
         central.append(struct.pack('<IHHHHHHIIIHHHHHII', 0x02014b50, 20, 20, 0, method, 0, 0x21,
                                    crc, csize, len(data), len(nb), 0, 0, 0, 0, 0, offset) + nb)
@@ -247,9 +269,30 @@ def main():
     ok = verify(signed, cert)
     z = zipfile.ZipFile(dst)
     bad = z.testzip()
-    print('signed apk: %s (%.1f KB) · entries: %d · v2 verify: %s · zip: %s' % (
-        dst, len(signed) / 1024, len(z.namelist()), 'OK' if ok else 'FAILED', 'OK' if bad is None else bad))
+
+    # ---- Android package-parser style checks (the reason installs fail with "corrupt file")
+    blob = open(dst, 'rb').read()
+    problems = []
+    for info in z.infolist():
+        off = info.header_offset
+        if blob[off:off + 4] != b'PK\x03\x04':
+            problems.append('bad local header ' + info.filename)
+            continue
+        nlen, elen = struct.unpack('<HH', blob[off + 26:off + 30])
+        dstart = off + 30 + nlen + elen
+        align = 4 if info.filename in ('resources.arsc',) or info.filename.endswith('.so') else 0
+        if align and dstart % align:
+            problems.append('%s not %d-byte aligned (%d)' % (info.filename, align, dstart))
+        if info.filename == 'resources.arsc' and info.compress_type != 0:
+            problems.append('resources.arsc is compressed')
+    arsc = z.getinfo('resources.arsc') if 'resources.arsc' in z.namelist() else None
+    print('signed apk: %s (%.1f KB) · entries: %d · v2: %s · zip: %s · arsc: %s · checks: %s' % (
+        dst, len(signed) / 1024, len(z.namelist()),
+        'OK' if ok else 'FAILED', 'OK' if bad is None else bad,
+        'stored+aligned' if (arsc and arsc.compress_type == 0) else 'BAD',
+        'OK' if not problems else '; '.join(problems)))
     assert ok, 'v2 signature verification failed'
+    assert not problems, problems
     return 0
 
 

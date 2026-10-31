@@ -73,6 +73,22 @@ const woodTex = () => tex('woodFloor', 256, 256, (ctx, w, h) => {
   grain(ctx, w, h, 34, 1800);
 }, 6, 6);
 
+const marbleTex = () => tex('marble', 512, 512, (ctx, w, h) => {
+  ctx.fillStyle = '#d6d2c6'; ctx.fillRect(0, 0, w, h);
+  grain(ctx, w, h, 26, 2600);
+  for (let i = 0; i < 22; i++) {
+    ctx.strokeStyle = `rgba(150,146,132,${0.25 + Math.random() * 0.35})`;
+    ctx.lineWidth = 1 + Math.random() * 2.5;
+    ctx.beginPath();
+    let x = Math.random() * w, y = Math.random() * h;
+    ctx.moveTo(x, y);
+    for (let k = 0; k < 6; k++) { x += (Math.random() - 0.5) * 90; y += (Math.random() - 0.5) * 90; ctx.lineTo(x, y); }
+    ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(188,184,172,.9)'; ctx.lineWidth = 3;
+  ctx.strokeRect(0, 0, w, h); ctx.beginPath(); ctx.moveTo(w / 2, 0); ctx.lineTo(w / 2, h); ctx.stroke();
+}, 3, 3);
+
 const tileTex = () => tex('tile', 256, 256, (ctx, w, h) => {
   ctx.fillStyle = '#3c4046'; ctx.fillRect(0, 0, w, h);
   for (let y = 0; y < h; y += 64) for (let x = 0; x < w; x += 64) {
@@ -278,7 +294,7 @@ export function buildWorld(scene, colliders) {
   root.add(bank);
   const bankMat = std(0xffffff, { map: facadeTex('bankFacade', '#7d7466', 0.45), roughness: 0.85 });
   const bankIn = std(0xd8d2c0, { roughness: 0.9 });
-  const bankFloor = std(0xffffff, { map: tileTex(), roughness: 0.55 });
+  const bankFloor = std(0xffffff, { map: marbleTex(), roughness: 0.42, metalness: 0.06 });
   plane(bank, (B.x1 + B.x2) / 2, (B.z1 + B.z2) / 2, B.x2 - B.x1, B.z2 - B.z1, bankFloor, 0.05);
 
   const bt = 0.4;

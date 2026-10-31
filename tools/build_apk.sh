@@ -4,10 +4,10 @@ set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-JDK="${JAVA_HOME:-/tmp/jdkvenv/lib/python3.11/site-packages/jdk4py/java-runtime}"
+JDK="${JAVA_HOME:-$ROOT/.venv-tools/lib/python3.11/site-packages/jdk4py/java-runtime}"
 export JAVA_HOME="$JDK"
 export PATH="$JAVA_HOME/bin:$PATH"
-APKTOOL="${APKTOOL_JAR:-/tmp/apk/package/bin/apktool_2.4.1.jar}"
+APKTOOL="${APKTOOL_JAR:-/tmp/apk/node_modules/apktool-jar/bin/apktool_2.4.1.jar}"
 PY="${SIGN_PY:-$ROOT/.venv-sign/bin/python}"
 
 echo "== 1/4 сборка web-бандла"

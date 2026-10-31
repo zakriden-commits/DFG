@@ -113,6 +113,7 @@ class Car {
         this.siren = false;
         this.readyT = 0;
         g.ui.log('🚔 Наряд на месте');
+        g.sound?.radio?.();
       } else {
         const v = Math.sqrt(2 * 7 * Math.max(0.3, remaining - 0.6));
         this.speed = Math.min(this.maxSpeed, Math.max(3.4, v));

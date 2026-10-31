@@ -62,7 +62,43 @@ export class Sound {
   door() { this._noise(0.22, 320, 0.9, 0.25); }
   reload() { this._noise(0.07, 900, 1.5, 0.25); setTimeout(() => this._noise(0.09, 700, 1.2, 0.3), 160); }
   pickup() { this._tone(880, 0.07, 'triangle', 0.16, 1320); }
+  /* зацикленный эмбиент города (записанный WAV) */
+  ambience(on = true) {
+    try {
+      if (!this.amb) {
+        const a = new Audio('assets/audio/city.wav');
+        a.loop = true; a.volume = 0.16; a.preload = 'auto';
+        this.amb = a;
+      }
+      if (on && this.amb.paused) this.amb.play().catch(() => {});
+      if (!on && !this.amb.paused) this.amb.pause();
+    } catch (e) { this.amb = null; }
+  }
+
+  /* короткая помеха рации */
+  radio() {
+    try {
+      const a = new Audio('assets/audio/radio.wav');
+      a.volume = 0.5;
+      a.play().catch(() => {});
+    } catch (e) {}
+  }
+
   siren(on) {
+    // если есть записанная сирена — играем её, синтез остаётся запасным
+    try {
+      if (this.recSiren === undefined) {
+        const a = new Audio('assets/audio/siren.wav');
+        a.loop = true; a.volume = 0.34; a.preload = 'auto';
+        this.recSiren = a;
+      }
+    } catch (e) { this.recSiren = null; }
+    if (this.recSiren) {
+      const a = this.recSiren;
+      if (on && a.paused) a.play().catch(() => {});
+      if (!on && !a.paused) a.pause();
+      return;
+    }
     if (!this.ok) return;
     if (on && !this.sirenNodes) {
       const c = this.ctx;
