@@ -20,7 +20,7 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000;color:#
 .boot-txt{font-size:12px;letter-spacing:2px;color:#8e8878;text-transform:uppercase;}
 
 /* ================= menu ================= */
-#menu{background:linear-gradient(160deg,#14161a 0%,#1d1a16 45%,#0a0b0d 100%);overflow:hidden;}
+#menu{background:linear-gradient(160deg,rgba(20,22,26,.88) 0%,rgba(29,26,22,.90) 45%,rgba(10,11,13,.96) 100%);overflow:hidden;backdrop-filter:blur(2px) saturate(.85);}
 .menu-vignette{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 35%,transparent 30%,rgba(0,0,0,.85) 100%);}
 .menu-grain{position:absolute;inset:-50%;opacity:.06;background-image:radial-gradient(#fff 1px,transparent 1px);background-size:3px 3px;animation:grain 6s steps(4) infinite;}
 @keyframes grain{0%{transform:translate(0,0)}25%{transform:translate(-3px,2px)}50%{transform:translate(2px,-3px)}75%{transform:translate(-2px,-2px)}100%{transform:translate(0,0)}}
