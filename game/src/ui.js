@@ -75,6 +75,14 @@ export class UI {
     const n = $('netStatus');
     n.innerHTML = `<i class="dot" style="background:${ok ? '#5ad25a' : '#c9a23a'};box-shadow:0 0 8px ${ok ? '#5ad25a' : '#c9a23a'}"></i> ${text}`;
   }
+  setCops(text) {
+    const e = $('copLine');
+    if (!e) return;
+    if (!text) { e.classList.add('hidden'); return; }
+    e.classList.remove('hidden');
+    e.textContent = text;
+  }
+
   setVoice(text, on = false) {
     const v = $('voiceStatus');
     v.textContent = (on ? '🎙 ' : '🔇 ') + text;

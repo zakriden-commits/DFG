@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { Character, WEAPONS, AMMO_PRICES, buildWeapon, buildMoneyPile } from './models.js';
+import { Traffic } from './traffic.js';
 import { buildWorld } from './world.js';
 import { Npc } from './npc.js';
 import * as INV from './inventory.js';
@@ -101,6 +102,9 @@ export class Game {
       money: 500, stars: 0, hotbar: INV.newHotbar(), ammo: INV.newAmmo(),
       selected: 0, alive: true, skin: 'gentleman', name: 'ДЖЕНТЕЛЬМЕН', sprintT: 0,
     };
+
+    this.traffic = new Traffic(this);
+    this.traffic.start();
 
     addEventListener('resize', () => this._resize());
     this._resize();
@@ -277,6 +281,7 @@ export class Game {
     const r = 62;
     this.camera.position.set(Math.cos(t) * r + 4, 26 + Math.sin(t * 0.7) * 5, Math.sin(t) * r - 4);
     this.camera.lookAt(4, 3, -2);
+    this.traffic?.update(dt);
     this.sun.position.copy(this.camera.position).add(V(-30, 60, 30));
     this.sun.target.position.set(4, 0, 0);
   }
@@ -291,6 +296,7 @@ export class Game {
     else { this.updatePlayer(dt); }
 
     this.updateWorld(dt);
+    this.traffic?.update(dt);
     this.updateNpcs(dt);
     this.updateRemote(dt);
     this.updateCombat(dt);
@@ -306,6 +312,7 @@ export class Game {
     if (this.hudTick > 0.12) {
       this.hudTick = 0;
       this.ui.setStats({ hp: p.hp, stamina: p.stamina, money: p.money, stars: p.stars });
+      this.ui.setCops(this.copHudText());
     }
     if (this.moneyRespawnT > 0) {
       this.moneyRespawnT -= dt;
@@ -314,6 +321,18 @@ export class Game {
         this.ui.log('В банке снова появились деньги');
       }
     }
+  }
+
+  copHudText() {
+    const car = this.traffic?.nearestResponse(this.player.pos);
+    if (!car) return null;
+    if (car.state === 'respond') {
+      const left = Math.abs(car.stopX - car.x);
+      const secs = Math.max(1, Math.ceil(left / Math.max(4, car.speed)));
+      return `🚔 НАРЯД В ПУТИ · ~${secs} с`;
+    }
+    if (car.state === 'parked') return '🚔 ПОЛИЦИЯ НА МЕСТЕ';
+    return null;
   }
 
   updateIntro(dt) {
@@ -461,20 +480,21 @@ export class Game {
         this.pendingOffer = n;
       }
     }
-    // despawn cops when calm
+    // копы без розыска садятся в машину, машина уезжает (безмашинный спавн — старый путь)
     for (let i = this.npcs.length - 1; i >= 0; i--) {
       const n = this.npcs[i];
-      if (n.role === 'cop' && this.player.stars === 0 && (this.remoteStars || 0) === 0) {
-        n.calmT = (n.calmT || 0) + dt;
-        if (n.calmT > 6) {
-          n.leaving = true;
-          n.pos.x += (n.startPos.x - n.pos.x) * dt * 0.9;
-          n.pos.z += (n.startPos.z - n.pos.z) * dt * 0.9;
-          n.char.root.position.set(n.pos.x, 0, n.pos.z);
-          if (distXZ(n.pos, n.startPos) < 3) {
-            this.scene.remove(n.char.root);
-            this.npcs.splice(i, 1);
-          }
+      if (n.role !== 'cop' || n.inactive) continue;
+      if (this.player.stars !== 0 || (this.remoteStars || 0) !== 0) { n.calmT = 0; continue; }
+      if (n.car) continue;
+      n.calmT = (n.calmT || 0) + dt;
+      if (n.calmT > 6) {
+        n.leaving = true;
+        n.pos.x += (n.startPos.x - n.pos.x) * dt * 0.9;
+        n.pos.z += (n.startPos.z - n.pos.z) * dt * 0.9;
+        n.char.root.position.set(n.pos.x, 0, n.pos.z);
+        if (distXZ(n.pos, n.startPos) < 3) {
+          this.scene.remove(n.char.root);
+          this.npcs.splice(i, 1);
         }
       }
     }
@@ -669,8 +689,8 @@ export class Game {
     if (!this.flashes.some((f) => f.persistent)) this.flashes.push({ l, t: 0.06, persistent: true });
   }
 
-  spawnSpark(pos, color) {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5), new THREE.MeshBasicMaterial({ color }));
+  spawnSpark(pos, color, size = 0.07) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(size, 6, 5), new THREE.MeshBasicMaterial({ color }));
     m.position.copy(pos);
     this.scene.add(m);
     this.flashes.push({ l: m, t: 0.12, mesh: true });
@@ -853,7 +873,6 @@ export class Game {
     p.stars = clamp(p.stars + n, 0, 5);
     this.ui.setStats({ stars: p.stars });
     this.net.send({ t: 'e', k: 'stars', v: p.stars });
-    if (p.stars > 0 && !this.alarmOn) this.spawnPolice(1);
   }
 
   triggerAlarm(reason) {
@@ -876,18 +895,14 @@ export class Game {
   }
 
   spawnPolice(n) {
+    if (this.traffic) { this.traffic.dispatch(Math.min(2, Math.max(1, n))); return; }
+    // fallback (без дорожного модуля) — старый мгновенный спавн
     for (let i = 0; i < n; i++) {
-      const existing = this.npcs.filter((x) => x.role === 'cop').length;
-      if (existing >= 4) break;
-      const px = this.player.pos.x;
-      const base = this.world.policeSpawns[i % this.world.policeSpawns.length];
-      const sp = base.clone();
-      sp.x = clamp(px + (px > 0 ? -34 : 34) + (i - 0.5) * 6, -74, 74);
-      sp.z = base.z;
+      if (this.npcs.filter((x) => x.role === 'cop').length >= 4)break;
+      const sp = this.world.policeSpawns[i % this.world.policeSpawns.length].clone();
       const cop = new Npc(this, { role: 'cop', pos: sp, yaw: 0 });
       cop.path = null;
       this.npcs.push(cop);
-      this.ui.log('Полиция прибыла');
     }
   }
 
@@ -928,8 +943,13 @@ export class Game {
 
   copShootAt(cop, targetPos, target) {
     this.sound.shot('pistol');
-    const from = new THREE.Vector3(cop.pos.x, 1.4, cop.pos.z);
+    const from = new THREE.Vector3(
+      cop.pos.x + Math.sin(cop.yaw) * 0.6,
+      1.44,
+      cop.pos.z + Math.cos(cop.yaw) * 0.6,
+    );
     const to = new THREE.Vector3(targetPos.x + (Math.random() - 0.5) * 0.6, 1.2, targetPos.z + (Math.random() - 0.5) * 0.6);
+    this.spawnSpark(from, 0xffe0a0, 0.13);
     this.tracer(from, to);
     const hitChance = 0.72;
     if (Math.random() < hitChance) {

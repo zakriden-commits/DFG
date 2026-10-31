@@ -93,3 +93,26 @@ render([-24, 1.8, -10], [-24, 1.6, -22], '/tmp/viz/shop.png');             // gu
 render([0, 24, 46], [0, 0, -6], '/tmp/viz/city.png');                      // city overview
 render([-11, 1.7, 16], [-3, 1.6, 6], '/tmp/viz/street.png');               // from house door
 render([40, 2.0, 24], [41, 1.4, 15], '/tmp/viz/dock.png');                 // loading dock
+
+/* ---- new: house door, road with parked cars, police response ---- */
+render([-8.5, 1.7, 5.6], [-8.5, 1.35, 10.4], '/tmp/viz/door.png');         // porch / doorway from street
+render([-6, 2.5, 7.6], [13, 1.0, 2.2], '/tmp/viz/road.png');               // kerb + parked cars
+game.player.pos.set(11.5, 0, -6);
+game.player.yaw = Math.PI;
+game.triggerAlarm('preview');
+for (let i = 0; i < 30 * 9; i++) { game.player.hp = 100; game.update(1 / 30); }
+const resp = game.traffic.responses[0];
+if (resp) render([resp.x + 9, 2.4, resp.z + 8.5], [resp.x - 1, 1.1, resp.z - 1], '/tmp/viz/police.png');
+console.log('cops out:', game.npcs.filter((n) => n.role === 'cop' && !n.inactive).length, 'car state:', resp?.state);
+
+/* close-up: cop aiming + shooting at the player */
+const cop = game.npcs.find((n) => n.role === 'cop' && !n.inactive && !n.dead);
+if (cop) {
+  game.player.stars = 4;
+  game.player.pos.set(cop.pos.x + 17, 0, cop.pos.z + 2.5);
+  game.player.hp = 100;
+  for (let i = 0; i < 40; i++) { game.player.hp = 100; game.player.pos.set(cop.pos.x + 17, 0, cop.pos.z + 2.5); game.update(1 / 30); }
+  const cx = cop.pos.x, cz = cop.pos.z;
+  render([cx + 3.4, 1.7, cz + 2.6], [cx, 1.25, cz], '/tmp/viz/cop.png');
+  console.log('cop aiming:', cop.aimingWanted, 'reload:', cop.reloadT?.toFixed(2), 'shots:', cop.shots);
+}

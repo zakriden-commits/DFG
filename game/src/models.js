@@ -389,6 +389,8 @@ export class Character {
 
   punch() { this.punchT = 0.42; }
 
+  shoot() { this.recoilT = 0.18; }
+
   lieDown(t = 0) { this.lying = true; this.lieT = t; }
 
   wakeUp() { this.lying = false; this.wakeAnim = 1; }
@@ -397,6 +399,7 @@ export class Character {
     const S = this.S;
     if (this.hurtT > 0) this.hurtT -= dt;
     if (this.punchT > 0) this.punchT -= dt;
+    if (this.recoilT > 0) this.recoilT -= dt;
     this.phase += dt * (1.6 + speed * 1.7);
 
     const p = this.phase;
@@ -472,6 +475,11 @@ export class Character {
     }
     if (this.weaponId === 'bag') armRx = 0.1;
 
+    if (this.recoilT > 0) {
+      const k = this.recoilT / 0.18;
+      armRx -= k * 0.42;
+      elbR += k * 0.3;
+    }
     this.armR.shoulder.rotation.x = armRx;
     this.armL.shoulder.rotation.x = armLx;
     this.armR.shoulder.rotation.z = armRz;
@@ -535,15 +543,52 @@ export function buildCar(color = 0x8a2b2b, kind = 'sedan') {
   // wheels
   const wheelG = new THREE.CylinderGeometry(0.36, 0.36, 0.24, 14);
   const rimG = new THREE.CylinderGeometry(0.2, 0.2, 0.26, 10);
+  const wheels = [];
   [[-0.92, 1.35], [0.92, 1.35], [-0.92, -1.35], [0.92, -1.35]].forEach(([x, z]) => {
+    const holder = new THREE.Group();
+    holder.position.set(x, 0.36, z);
+    holder.rotation.z = Math.PI / 2;
+    g.add(holder);
     const w = new THREE.Mesh(wheelG, trimM);
-    w.rotation.z = Math.PI / 2; w.position.set(x, 0.36, z);
-    w.castShadow = true; g.add(w);
+    w.castShadow = true;
+    holder.add(w);
     const r = new THREE.Mesh(rimG, std(0x9aa0a8, { metalness: 0.9, roughness: 0.3 }));
-    r.rotation.z = Math.PI / 2; r.position.set(x * 1.02, 0.36, z); g.add(r);
+    holder.add(r);
+    wheels.push(w, r);
   });
+  g.userData.wheels = wheels;
+  g.userData.spin = (a) => { for (const w of wheels) w.rotation.y += a; };
   // mirrors
   [-1, 1].forEach((s) => g.add(mesh(roundedBoxGeom(0.18, 0.09, 0.1, 0.03), bodyM, s * 0.92, 1.16, 0.75)));
+  return g;
+}
+
+/* police cruiser: dark body, white doors, light bar + real light */
+export function buildPoliceCar() {
+  const g = buildCar(0x1a1e27);
+  const white = std(0xe9ecef, { roughness: 0.42, metalness: 0.2 });
+  const dark = std(0x14161c, { roughness: 0.5, metalness: 0.3 });
+  [-1, 1].forEach((s) => {
+    g.add(mesh(roundedBoxGeom(0.05, 0.46, 1.95, 0.02), white, s * 0.935, 0.72, 0.05));
+    g.add(mesh(roundedBoxGeom(0.06, 0.17, 0.9, 0.02), std(0x2a63c8, { roughness: 0.5, metalness: 0.2 }), s * 0.94, 0.95, 0.55));
+  });
+  // push bar
+  g.add(mesh(roundedBoxGeom(1.7, 0.34, 0.12, 0.05), dark, 0, 0.6, 2.18));
+  // roof light bar
+  const bar = new THREE.Group();
+  bar.position.set(0, 1.42, -0.1);
+  g.add(bar);
+  bar.add(mesh(new THREE.BoxGeometry(1.42, 0.08, 0.34), dark, 0, 0.02, 0));
+  const redM = std(0x8c1010, { emissive: 0xff1414, emissiveIntensity: 0.35, roughness: 0.3 });
+  const blueM = std(0x101a8c, { emissive: 0x1a3cff, emissiveIntensity: 0.35, roughness: 0.3 });
+  const red = mesh(new THREE.BoxGeometry(0.56, 0.18, 0.3), redM, -0.36, 0.13, 0);
+  const blue = mesh(new THREE.BoxGeometry(0.56, 0.18, 0.3), blueM, 0.36, 0.13, 0);
+  bar.add(red); bar.add(blue);
+  const light = new THREE.PointLight(0xff2020, 0, 16, 2);
+  light.position.set(0, 1.75, 0);
+  g.add(light);
+  g.userData.lights = { red, blue, light };
+  g.userData.isPolice = true;
   return g;
 }
 

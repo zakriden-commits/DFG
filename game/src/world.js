@@ -139,8 +139,8 @@ export function buildWorld(scene, colliders) {
   /* ---- roads & sidewalks ---- */
   const road = plane(root, 0, 0, 200, 12, std(0xffffff, { map: asphaltTex(), roughness: 0.95 }), 0.01);
   const sideMat = std(0xffffff, { map: sidewalkTex(), roughness: 0.95 });
-  plane(root, 0, -8.2, 200, 6.4, sideMat, 0.12);
-  plane(root, 0, 8.2, 200, 6.4, sideMat, 0.12);
+  plane(root, 0, -7.4, 200, 4.4, sideMat, 0.12);
+  plane(root, 0, 7.5, 200, 5.0, sideMat, 0.12);
   // curbs
   const curbM = std(0x9a9a94, { roughness: 0.9 });
   [-5.0, 5.0].forEach((z) => {
@@ -164,12 +164,12 @@ export function buildWorld(scene, colliders) {
   const houseMat = std(0xffffff, { map: plasterTex('plasterHouse', '#8d7c62'), roughness: 0.92 });
   const floorMat = std(0xffffff, { map: woodTex(), roughness: 0.85 });
 
-  plane(house, (H.x1 + H.x2) / 2, (H.z1 + H.z2) / 2, H.x2 - H.x1, H.z2 - H.z1, floorMat, 0.06);
+  plane(house, (H.x1 + H.x2) / 2, (H.z1 + H.z2) / 2, H.x2 - H.x1, H.z2 - H.z1, floorMat, 0.13);
   const t = 0.3;
   // north wall with doorway x -9.4..-7.6
-  box(house, colliders, (H.x1 + -9.4) / 2, 0, H.z1 + t / 2, -9.4 - H.x1, H.h, t, houseMat);
-  box(house, colliders, (-7.6 + H.x2) / 2, 0, H.z1 + t / 2, H.x2 + 7.6, H.h, t, houseMat);
-  box(house, colliders, -8.5, 2.4, H.z1 + t / 2, 1.8, H.h - 2.4, t, houseMat); // lintel
+  box(house, colliders, (H.x1 + -9.6) / 2, 0, H.z1 + t / 2, -9.6 - H.x1, H.h, t, houseMat);
+  box(house, colliders, (-7.4 + H.x2) / 2, 0, H.z1 + t / 2, H.x2 + 7.4, H.h, t, houseMat);
+  box(house, colliders, -8.5, 2.4, H.z1 + t / 2, 2.2, H.h - 2.4, t, houseMat, 'wall', false); // lintel (without collider!)
   // south, east, west walls
   box(house, colliders, (H.x1 + H.x2) / 2, 0, H.z2 - t / 2, H.x2 - H.x1, H.h, t, houseMat);
   box(house, colliders, H.x1 + t / 2, 0, (H.z1 + H.z2) / 2, t, H.h, H.z2 - H.z1, houseMat);
@@ -184,12 +184,19 @@ export function buildWorld(scene, colliders) {
 
   /* house door (hinged) */
   const doorPivot = new THREE.Group();
-  doorPivot.position.set(-7.6, 0, H.z1 + t / 2);
+  doorPivot.position.set(-7.4, 0, H.z1 + t / 2);
   house.add(doorPivot);
-  const doorMesh = mesh(roundedBoxGeom(1.8, 2.35, 0.12, 0.03), std(0x5a3a22, { roughness: 0.8 }), -0.9, 1.18, 0);
+  const doorMesh = mesh(roundedBoxGeom(2.2, 2.35, 0.12, 0.03), std(0x5a3a22, { roughness: 0.8 }), -1.1, 1.18, 0);
   doorPivot.add(doorMesh);
-  doorMesh.add(mesh(new THREE.SphereGeometry(0.06, 8, 6), std(0xd8b64a, { metalness: 0.9, roughness: 0.25 }), 0.62, 0, 0.1));
-  const doorCollider = colliders.add(-8.6, -7.5, H.z1 + 0.02, H.z1 + 0.3, 'door');
+  doorMesh.add(mesh(new THREE.SphereGeometry(0.06, 8, 6), std(0xd8b64a, { metalness: 0.9, roughness: 0.25 }), -1.95, 0, 0.1));
+  const doorCollider = colliders.add(-9.6, -7.4, H.z1 + 0.02, H.z1 + 0.28, 'door');
+  // porch step + lamp over the door so the exit is obvious
+  house.add(mesh(new THREE.BoxGeometry(3.0, 0.14, 1.1), std(0x9a927f, { roughness: 0.9 }), -8.5, 0.07, H.z1 - 0.55));
+  house.add(mesh(roundedBoxGeom(0.3, 0.24, 0.22, 0.04), std(0x2a2d33, { roughness: 0.6, metalness: 0.4 }), -8.5, 2.72, H.z1 - 0.02));
+  house.add(mesh(new THREE.SphereGeometry(0.1, 10, 8), std(0xfff2c0, { emissive: 0xffe6a0, emissiveIntensity: 1.6 }), -8.5, 2.62, H.z1 - 0.16));
+  const porchLight = new THREE.PointLight(0xffd9a0, 9, 9, 2);
+  porchLight.position.set(-8.5, 2.5, H.z1 - 0.6);
+  house.add(porchLight);
   W.houseDoor = {
     pivot: doorPivot, open: false, angle: 0, collider: doorCollider,
     pos: new THREE.Vector3(-8.5, 0, H.z1 + 0.4),
@@ -278,7 +285,7 @@ export function buildWorld(scene, colliders) {
   // south wall with wide entrance x 9..14
   box(bank, colliders, (B.x1 + 9) / 2, 0, B.z2 - bt / 2, 9 - B.x1, B.h, bt, bankMat);
   box(bank, colliders, (14 + B.x2) / 2, 0, B.z2 - bt / 2, B.x2 - 14, B.h, bt, bankMat);
-  box(bank, colliders, 11.5, 4.2, B.z2 - bt / 2, 5, B.h - 4.2, bt, bankMat);
+  box(bank, colliders, 11.5, 4.2, B.z2 - bt / 2, 5, B.h - 4.2, bt, bankMat, 'wall', false);
   // other walls
   box(bank, colliders, (B.x1 + B.x2) / 2, 0, B.z1 + bt / 2, B.x2 - B.x1, B.h, bt, bankMat);
   box(bank, colliders, B.x1 + bt / 2, 0, (B.z1 + B.z2) / 2, bt, B.h, B.z2 - B.z1, bankMat);
@@ -399,7 +406,7 @@ export function buildWorld(scene, colliders) {
   const st = 0.35;
   box(shop, colliders, (S.x1 - 25.6) / 2, 0, S.z2 - st / 2, -25.6 - S.x1, S.h, st, shopMat);
   box(shop, colliders, (-22.4 + S.x2) / 2, 0, S.z2 - st / 2, S.x2 + 22.4, S.h, st, shopMat);
-  box(shop, colliders, -24, 2.9, S.z2 - st / 2, 3.2, S.h - 2.9, st, shopMat);
+  box(shop, colliders, -24, 2.9, S.z2 - st / 2, 3.2, S.h - 2.9, st, shopMat, 'wall', false);
   box(shop, colliders, (S.x1 + S.x2) / 2, 0, S.z1 + st / 2, S.x2 - S.x1, S.h, st, shopMat);
   box(shop, colliders, S.x1 + st / 2, 0, (S.z1 + S.z2) / 2, st, S.h, S.z2 - S.z1, shopMat);
   box(shop, colliders, S.x2 - st / 2, 0, (S.z1 + S.z2) / 2, st, S.h, S.z2 - S.z1, shopMat);
@@ -528,10 +535,12 @@ export function buildWorld(scene, colliders) {
   W.dockBossPoint = new THREE.Vector3(36.5, 0, 13.0);
 
   /* ================= STREET PROPS ================= */
-  const lampPositions = [];
-  for (let x = -56; x <= 56; x += 16) {
-    lampPositions.push([x, -8.8, 0], [x + 8, 8.8, Math.PI]);
-  }
+  // фонари — вручную, чтобы ни один не встал в дверях (банк 9..14, магазин -25.6..-22.4, дом -9.6..-7.4)
+  const lampPositions = [
+    [-52, -8.8, 0], [-36, -8.8, 0], [-14, -8.8, 0], [2, -8.8, 0], [20, -8.8, 0], [36, -8.8, 0], [52, -8.8, 0],
+    [-52, 8.8, Math.PI], [-36, 8.8, Math.PI], [-16, 8.8, Math.PI], [4, 8.8, Math.PI], [20, 8.8, Math.PI],
+    [38, 8.8, Math.PI], [54, 8.8, Math.PI],
+  ];
   lampPositions.forEach(([x, z, r]) => {
     const l = buildLamp();
     l.position.set(x, 0, z);
@@ -577,16 +586,20 @@ export function buildWorld(scene, colliders) {
     });
     colliders.add(x - 0.16, x + 0.16, z - 0.16, z + 0.16, 'noLOS');
   });
-  // cars
-  const carColors = [0x8c2b2b, 0x2b4a6b, 0x3a3f4a, 0x6b6b3a, 0x8a7a2b, 0x24340f];
-  const carSpots = [[-30, -6.6, 0], [-16, -6.6, 0], [3.5, -6.6, 0], [24, -6.6, 0], [-46, -6.6, 0],
-    [30, 6.6, Math.PI], [-8, 6.6, Math.PI], [-24, 6.6, Math.PI], [52, 6.6, Math.PI], [-52, 6.6, Math.PI]];
-  carSpots.forEach(([x, z, r], i) => {
+  // parked cars: parallel to the kerb, in the parking lane, clear of all entrances
+  const carColors = [0x8c2b2b, 0x2b4a6b, 0x3a3f4a, 0x6b6b3a, 0x8a7a2b, 0x24340f, 0xa8a29a];
+  const parkSpots = [
+    [-34, -3.95, Math.PI / 2], [-16, -3.95, Math.PI / 2], [22, -3.95, Math.PI / 2],
+    [33, -3.95, Math.PI / 2], [-50, -3.95, Math.PI / 2],
+    [-30, 3.95, -Math.PI / 2], [-20, 3.95, -Math.PI / 2], [24, 3.95, -Math.PI / 2],
+    [36, 3.95, -Math.PI / 2], [-46, 3.95, -Math.PI / 2],
+  ];
+  parkSpots.forEach(([x, z, r], i) => {
     const car = buildCar(carColors[i % carColors.length]);
     car.position.set(x, 0, z);
-    car.rotation.y = r;
+    car.rotation.y = r + (Math.random() - 0.5) * 0.02;
     root.add(car);
-    colliders.add(x - 1.0, x + 1.0, z - 2.2, z + 2.2, 'furniture');
+    colliders.add(x - 2.15, x + 2.15, z - 0.98, z + 0.98, 'noLOS'); // низкая машина не закрывает обзор
   });
   // bus stop
   root.add(mesh(roundedBoxGeom(4.5, 0.15, 2.2, 0.05), std(0x2c3e50, { roughness: 0.6 }), 16, 2.8, 8.4));

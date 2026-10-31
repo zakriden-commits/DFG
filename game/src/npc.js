@@ -130,7 +130,9 @@ export class Npc {
       this.char.lookTarget = { localYaw: clamp(local, -0.8, 0.8), localPitch: 0.1 };
     } else this.char.lookTarget = null;
 
-    this.char.aiming = this.role === 'guard' || this.role === 'cop' ? this.state === 'attack' || this.state === 'chase' : false;
+    this.char.aiming = this.role === 'cop'
+      ? !!this.aimingWanted && !(this.reloadT > 0)
+      : this.role === 'guard' ? !!this.hostile : false;
     this.char.update(dt, speed, { aiming: this.char.aiming });
   }
 
@@ -304,9 +306,42 @@ export class Npc {
   /* ---------- police ---------- */
   updateCop(dt, dp, pPos) {
     const g = this.game;
+
+    // 1) вылезает из машины
+    if (this.exiting > 0) {
+      this.exiting -= dt;
+      const k = clamp(1 - this.exiting / (this.exitDur || 0.55), 0, 1);
+      if (this.exitFrom && this.exitTo) {
+        this.pos.x = this.exitFrom.x + (this.exitTo.x - this.exitFrom.x) * k;
+        this.pos.z = this.exitFrom.z + (this.exitTo.z - this.exitFrom.z) * k;
+        this.pos.y = Math.sin(k * Math.PI) * 0.13;
+      }
+      this.faceTo(this.exitTo?.x ?? this.pos.x, this.exitTo?.z ?? this.pos.z + 1);
+      this.char.setState('walk');
+      this.char.root.position.copy(this.pos);
+      if (this.exiting <= 0) {
+        this.pos.y = 0;
+        this.exiting = 0;
+        if (!this.saidHi) { this.saidHi = true; this.say('Полиция! Стоять!', 2.2); }
+      }
+      return 2.1;
+    }
+
+    // 2) розыск снят — возвращается в машину и уезжает
+    if (this.car && !this.inCar && g.player.stars === 0 && (g.remoteStars || 0) === 0) {
+      const to = this.car.exitTo || this.car.pos;
+      if (distXZ(this.pos, to) > 1.25) {
+        this.char.setState('walk');
+        return this.moveToward(to.x, to.z, 2.9, dt);
+      }
+      this.inCar = true;
+      this.inactive = true;
+      this.char.root.visible = false;
+      return 0;
+    }
+
     const target = g.nearestWantedPlayer(this.pos);
     if (!target) {
-      // leave
       this.leaving = true;
       this.char.setState('walk');
       return this.moveToward(this.pos.x + (this.startPos.x - this.pos.x) * 0.02, this.pos.z + (this.startPos.z - this.pos.z) * 0.02, 2.6, dt);
@@ -316,25 +351,54 @@ export class Npc {
     const sees = g.visionCheck(this.pos, this.yaw, tp, 2.6, 40);
     if (sees) g.markSeen(target, this);
 
-    const stars = target === g.player ? g.player.stars : (g.remoteStars || 0);
-    const useGun = stars >= 3 && d > 4 && d < 24 && sees;
+    this.reloadT = Math.max(0, (this.reloadT || 0) - dt);
+    const stars = target.isRemote ? (g.remoteStars || 0) : g.player.stars;
+    const useGun = stars >= 3 && d < 30 && sees;
+    this.aimingWanted = useGun;
 
-    if (useGun) {
-      this.char.setState('idle');
-      this.faceTo(tp.x, tp.z);
-      if (this.attackCd <= 0) {
-        this.attackCd = 1.5;
-        this.char.punch();
-        g.copShootAt(this, tp, target);
+    if (useGun && this.reloadT <= 0) {
+      // стреляет с дистанции: подходит до ~12 м, с 4 м отходит, но ствол держит на цели
+      this.aimingWanted = true;
+      let sp = 0;
+      if (d > 12) {
+        this.char.setState('walk');
+        sp = this.moveToward(tp.x, tp.z, 3.1, dt);
+      } else if (d < 4.6) {
+        this.char.setState('walk');
+        sp = this.moveToward(this.pos.x * 2 - tp.x, this.pos.z * 2 - tp.z, 1.7, dt);
+      } else {
+        this.char.setState('idle');
+        this.faceTo(tp.x, tp.z);
       }
-      return 0;
+      if (!this.saidHi) { this.saidHi = true; this.say('Стоять! Полиция!', 2.2); }
+      if (this.attackCd <= 0 && d < 26) {
+        this.attackCd = 1.1 + Math.random() * 0.5;
+        this.char.shoot();
+        g.copShootAt(this, tp, target);
+        this.shots = (this.shots || 0) + 1;
+        if (this.shots >= 7) {
+          this.shots = 0;
+          this.reloadT = 1.8;
+          g.sound.reload();
+          this.say('Перезаряжаюсь…', 1.6);
+        }
+      }
+      return sp;
+    }
+    if (useGun) {
+      // перезарядка: опускает ствол, пятится
+      this.char.setState('walk');
+      this.faceTo(tp.x, tp.z);
+      return this.moveToward(this.pos.x * 2 - tp.x, this.pos.z * 2 - tp.z, 1.4, dt);
     }
     if (d < 2.0) {
       this.char.setState('idle');
       this.faceTo(tp.x, tp.z);
+      if (!this.saidHi) { this.saidHi = true; this.say('Руки за голову!', 2); }
       if (this.attackCd <= 0) {
         this.attackCd = 1.2;
         this.char.punch();
+        g.sound.punch();
         g.hitPlayer(8 + Math.random() * 4, this, target);
         g.ui.hitFlash();
       }
