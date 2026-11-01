@@ -262,11 +262,13 @@ def main():
     for name, data in v1:
         items.append((name, data, False))
 
+    v1_only = os.environ.get('V1_ONLY') == '1'
     raw = zip_build(items)
-    signed = v2_sign(raw, key, cert)
+    # v2-блок иногда принимается не всеми прошивками — умеем собирать чистый v1
+    signed = raw if v1_only else v2_sign(raw, key, cert)
     open(dst, 'wb').write(signed)
 
-    ok = verify(signed, cert)
+    ok = True if v1_only else verify(signed, cert)
     z = zipfile.ZipFile(dst)
     bad = z.testzip()
 
@@ -286,9 +288,9 @@ def main():
         if info.filename == 'resources.arsc' and info.compress_type != 0:
             problems.append('resources.arsc is compressed')
     arsc = z.getinfo('resources.arsc') if 'resources.arsc' in z.namelist() else None
-    print('signed apk: %s (%.1f KB) · entries: %d · v2: %s · zip: %s · arsc: %s · checks: %s' % (
+    print('signed apk: %s (%.1f KB) · entries: %d · %s: %s · zip: %s · arsc: %s · checks: %s' % (
         dst, len(signed) / 1024, len(z.namelist()),
-        'OK' if ok else 'FAILED', 'OK' if bad is None else bad,
+        'v1 only' if v1_only else 'v2', 'OK' if ok else 'FAILED', 'OK' if bad is None else bad,
         'stored+aligned' if (arsc and arsc.compress_type == 0) else 'BAD',
         'OK' if not problems else '; '.join(problems)))
     assert ok, 'v2 signature verification failed'
