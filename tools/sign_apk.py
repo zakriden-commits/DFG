@@ -35,14 +35,20 @@ def load_or_make_key():
         x509.NameAttribute(NameOID.ORGANIZATION_NAME, u'Deni Islam Studio'),
         x509.NameAttribute(NameOID.COUNTRY_NAME, u'NL'),
     ])
-    now = datetime.datetime.now(datetime.timezone.utc)
+    # срок действия широкий: телефон с неверными часами не должен считать сертификат
+    # просроченным/ещё не вступившим в силу (частая причина «файл недействителен» на MIUI)
     cert = (x509.CertificateBuilder()
             .subject_name(name).issuer_name(name)
             .public_key(key.public_key())
             .serial_number(x509.random_serial_number())
-            .not_valid_before(now - datetime.timedelta(days=1))
-            .not_valid_after(now + datetime.timedelta(days=365 * 30))
-            .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+            .not_valid_before(datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc))
+            .not_valid_after(datetime.datetime(2099, 12, 31, tzinfo=datetime.timezone.utc))
+            .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+            .add_extension(x509.KeyUsage(
+                digital_signature=True, content_commitment=False, key_encipherment=False,
+                data_encipherment=False, key_agreement=False, key_cert_sign=False,
+                crl_sign=False, encipher_only=False, decipher_only=False), critical=True)
+            .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False)
             .sign(key, hashes.SHA256()))
     open(KEY_PATH, 'wb').write(key.private_bytes(
         serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
@@ -93,15 +99,55 @@ def build_v1(entries, key, cert):
         sf += wrap72('SHA-256-Digest: %s' % b64(hashlib.sha256(section.encode()).digest())) + '\r\n\r\n'
     sf_bytes = sf.encode()
 
-    builder = pkcs7.PKCS7SignatureBuilder().set_data(sf_bytes).add_signer(cert, key, hashes.SHA256())
-    options = [pkcs7.PKCS7Options.DetachedSignature, pkcs7.PKCS7Options.Binary]
-    rsa_sig = builder.sign(serialization.Encoding.DER, options)
+    rsa_sig = build_pkcs7(sf_bytes, key, cert)
 
     return [
         ('META-INF/MANIFEST.MF', manifest),
         ('META-INF/CERT.SF', sf_bytes),
         ('META-INF/CERT.RSA', rsa_sig),
     ]
+
+
+def build_pkcs7(sf_bytes, key, cert):
+    """PKCS#7 SignedData ровно как у jarsigner: detached, SHA-256, атрибуты
+    contentType + messageDigest, алгоритм подписи sha256WithRSAEncryption.
+
+    Раньше DER собирала библиотека cryptography и писала алгоритм
+    rsaEncryption (1.2.840.113549.1.1.1) — часть прошивок из-за этого не
+    может проверить подпись и говорит «файл повреждён». Здесь алгоритм
+    объявлен явно (1.2.840.113549.1.1.11).
+    """
+    from asn1crypto import cms
+    from asn1crypto import x509 as ax509
+    acert = ax509.Certificate.load(cert.public_bytes(serialization.Encoding.DER))
+    digest = hashlib.sha256(sf_bytes).digest()
+    attrs = cms.CMSAttributes([
+        cms.CMSAttribute({'type': 'content_type', 'values': ['data']}),
+        cms.CMSAttribute({'type': 'message_digest', 'values': [digest]}),
+    ])
+    # подпись считается над DER-кодировкой атрибутов с универсальным SET OF (0x31)
+    signature = key.sign(attrs.untag().dump(), padding.PKCS1v15(), hashes.SHA256())
+    signer = cms.SignerInfo({
+        'version': 'v1',
+        'sid': cms.SignerIdentifier({
+            'issuer_and_serial_number': cms.IssuerAndSerialNumber({
+                'issuer': acert.issuer,
+                'serial_number': acert.serial_number,
+            }),
+        }),
+        'digest_algorithm': {'algorithm': 'sha256'},
+        'signed_attrs': attrs,
+        'signature_algorithm': {'algorithm': 'sha256_rsa'},
+        'signature': signature,
+    })
+    signed_data = cms.SignedData({
+        'version': 'v1',
+        'digest_algorithms': [{'algorithm': 'sha256'}],
+        'encap_content_info': {'content_type': 'data'},
+        'certificates': [cms.CertificateChoices(name='certificate', value=acert)],
+        'signer_infos': [signer],
+    })
+    return cms.ContentInfo({'content_type': 'signed_data', 'content': signed_data}).dump()
 
 
 # ---------------------------------------------------------------- zip writer
