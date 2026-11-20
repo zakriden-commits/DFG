@@ -17,7 +17,8 @@
     "verify:export": "node test/verify-export.mjs assets/models/character.glb",
     "chase": "node test/fps-chase.mjs",
     "serve": "vite build && vite preview --host 0.0.0.0 --port 5173",
-    "check": "node test/api-check.mjs"
+    "check": "node test/api-check.mjs",
+    "tp": "node test/tp-controller.mjs"
   },
   "repository": {
     "type": "git",

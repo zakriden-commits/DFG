@@ -34,7 +34,8 @@ export default defineConfig({
     chunkSizeWarningLimit: 1200,
     rollupOptions: {
       input: {
-        rig: 'index.html',
+        game: 'index.html',
+        rig: 'rig.html',
         fps: 'first-person.html',
       },
     },

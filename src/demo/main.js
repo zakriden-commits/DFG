@@ -158,6 +158,9 @@ scene.add(key.target);
 {
   const fpsLink = document.getElementById('fpsLink');
   if (fpsLink && location.search) fpsLink.href += location.search;
+  if (location.search) {
+    for (const a of document.querySelectorAll('a.keep-token')) a.href += location.search;
+  }
 }
 
 const $ = (id) => document.getElementById(id);

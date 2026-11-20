@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Риг персонажа — походка (Michael Myers)</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🕺</text></svg>"
+    />
+    <link rel="stylesheet" href="/src/demo/style.css" />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <div id="hud">
+      <div class="panel" id="info">
+        <h1>РИГ <span>· ПОХОДКА</span></h1>
+        <dl id="infoList">
+          <div><dt>Модель</dt><dd id="iModel">манекен</dd></div>
+          <div><dt>Кости</dt><dd id="iBones">—</dd></div>
+          <div><dt>Конвенция</dt><dd id="iConv">—</dd></div>
+          <div><dt>3D</dt><dd id="iGL">—</dd></div>
+          <div><dt>Idle</dt><dd id="iIdle">—</dd></div>
+          <div><dt>Walk</dt><dd id="iWalk">—</dd></div>
+          <div><dt>Шаг</dt><dd id="iStep">—</dd></div>
+          <div><dt>Скорость</dt><dd id="iSpeed">0.0 м/с</dd></div>
+        </dl>
+        <div id="warn" class="warn hidden"></div>
+      </div>
+
+      <div class="toolbar">
+        <button id="btnLoad" class="btn">Загрузить GLB</button>
+        <button id="btnExport" class="btn">Скачать GLB</button>
+        <button id="btnPreset" class="btn ghost">Походка: маньяк</button>
+        <button id="btnSkeleton" class="btn ghost">Скелет</button>
+        <button id="btnFlip" class="btn ghost">Развернуть</button>
+        <a class="btn ghost keep-token" href="./">Играть за Майкла →</a>
+        <a class="btn ghost" id="fpsLink" href="./first-person.html">Первое лицо →</a>
+        <input id="file" type="file" accept=".glb,.gltf" hidden />
+      </div>
+
+      <div class="panel" id="controls">
+        <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> движение</div>
+        <div><kbd>Shift</kbd> быстрее</div>
+        <div><span class="mouse">ЛКМ</span> вращение камеры · колесо — зум</div>
+      </div>
+
+      <div id="toast" class="toast hidden"></div>
+    </div>
+
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <div>Готовим сцену…</div>
+    </div>
+
+    <script type="module" src="/src/demo/main.js"></script>
+  </body>
+</html>
