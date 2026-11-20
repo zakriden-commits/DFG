@@ -608,6 +608,12 @@ addEventListener('resize', () => {
 
 /* --------------------------------- старт --------------------------------- */
 
+// обратная ссылка должна нести токен превью, иначе получим 403
+{
+  const back = document.querySelector('a.back');
+  if (back && location.search) back.href += location.search;
+}
+
 // он появляется за спиной, в тумане
 {
   const sx = player.pos.x + Math.sin(player.yaw + Math.PI) * CFG.spawnDistance;

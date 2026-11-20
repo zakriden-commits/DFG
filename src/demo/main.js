@@ -109,6 +109,12 @@ scene.add(key.target);
 
 /* --------------------------------- UI ---------------------------------- */
 
+// превью в Arena открывается с токеном в query — сохраняем его при переходе
+{
+  const fpsLink = document.getElementById('fpsLink');
+  if (fpsLink && location.search) fpsLink.href += location.search;
+}
+
 const $ = (id) => document.getElementById(id);
 const ui = {
   model: $('iModel'),
