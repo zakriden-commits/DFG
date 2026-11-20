@@ -1,6 +1,19 @@
 import { defineConfig } from 'vite';
+import { cpSync, existsSync } from 'node:fs';
+
+/** GLB лежат в assets/ (их же читают Node-скрипты), в сборку копируем руками */
+function copyModels() {
+  return {
+    name: 'copy-models',
+    apply: 'build',
+    closeBundle() {
+      if (existsSync('assets')) cpSync('assets', 'dist/assets', { recursive: true });
+    },
+  };
+}
 
 export default defineConfig({
+  plugins: [copyModels()],
   server: {
     host: '0.0.0.0',
     port: 5173,
@@ -17,5 +30,11 @@ export default defineConfig({
   },
   build: {
     chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      input: {
+        rig: 'index.html',
+        fps: 'first-person.html',
+      },
+    },
   },
 });

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Michael Myers — преследование (первое лицо)</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🔪</text></svg>"
+    />
+    <link rel="stylesheet" href="/src/fps/style.css" />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <div id="hud" class="hidden">
+      <div class="panel" id="status">
+        <h1>MICHAEL <span>· ПРЕСЛЕДОВАНИЕ</span></h1>
+        <dl>
+          <div><dt>Он</dt><dd id="imState">—</dd></div>
+          <div><dt>Дистанция</dt><dd id="imDist">—</dd></div>
+          <div><dt>Ты</dt><dd id="imMe">—</dd></div>
+        </dl>
+      </div>
+
+      <div id="compass" title="Направление на Майкла">
+        <div id="compassDial"><span id="compassArrow">▲</span></div>
+        <div id="compassDist">—</div>
+      </div>
+
+      <div id="crosshair"></div>
+      <div id="threat"></div>
+      <a class="back" href="./">← риг и клипы</a>
+      <div id="hint">WASD — идти · Shift — бежать · клик — вернуть мышь · Esc — отпустить</div>
+    </div>
+
+    <div id="start">
+      <div class="card">
+        <h2>ОН ЖДЁТ</h2>
+        <p>
+          Ты в лесу. Он идёт за тобой — медленно, но не останавливаясь.<br />
+          Отойди подальше — он пойдёт. Замри — он подойдёт и встанет.
+        </p>
+        <button id="startBtn">ВОЙТИ</button>
+        <small>Клик по экрану — захват мыши. Esc — отпустить.</small>
+      </div>
+    </div>
+
+    <div id="toast" class="hidden"></div>
+
+    <script type="module" src="/src/fps/main.js"></script>
+  </body>
+</html>

@@ -14,7 +14,8 @@
     "model:probe": "node test/probe-model.mjs",
     "model:sheet": "node test/pose-sheet.mjs",
     "model:export": "node tools/export-walk-glb.mjs google_drive/michael_myers.glb assets/models/character.glb stalker",
-    "verify:export": "node test/verify-export.mjs assets/models/character.glb"
+    "verify:export": "node test/verify-export.mjs assets/models/character.glb",
+    "chase": "node test/fps-chase.mjs"
   },
   "repository": {
     "type": "git",
