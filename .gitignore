@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+test/_walk_*.png
+test/*.ppm
+assets/models/*.report.json

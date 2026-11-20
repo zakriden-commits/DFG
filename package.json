@@ -1,0 +1,34 @@
+{
+  "name": "dfg",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "inspect:glb": "node tools/inspect-glb.mjs",
+    "walk:sheet": "node test/preview-walk.mjs stalker",
+    "test:smoke": "node test/smoke-mannequin.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zakriden-commits/DFG.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/zakriden-commits/DFG/issues"
+  },
+  "homepage": "https://github.com/zakriden-commits/DFG#readme",
+  "private": "true",
+  "type": "module",
+  "dependencies": {
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.10"
+  }
+}
