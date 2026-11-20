@@ -3,7 +3,11 @@ import { loadModelFile } from '../tools/glb-model.mjs';
 import { HumanoidRig } from '../src/anim/humanoidRig.js';
 import { buildWalkClip } from '../src/anim/walkClip.js';
 
-const model = process.argv[2] || 'google_drive/michael_myers.glb';
+import { existsSync } from 'node:fs';
+
+// в репозитории лежит только готовый character.glb, исходник — локально в google_drive/
+const fallback = 'google_drive/michael_myers.glb';
+const model = process.argv[2] || (existsSync(fallback) ? fallback : 'assets/models/character.glb');
 const gltf = await loadModelFile(model);
 const root = gltf.scene;
 root.updateWorldMatrix(true, true);
