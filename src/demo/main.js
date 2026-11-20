@@ -30,7 +30,13 @@ diag.status(`WebGL: ${gl.version} · ${gl.name}`);
 /* --------------------------------- сцена --------------------------------- */
 
 const canvas = document.getElementById('scene');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+} catch (err) {
+  diag.fatal('Не удалось создать 3D-рендерер', String(err?.message || err));
+  throw err;
+}
 
 /** В iframe превью канвас может родиться с нулевым размером — подгоняем постоянно */
 function fitRenderer() {
@@ -61,8 +67,12 @@ const camera = new THREE.PerspectiveCamera(46, (window.innerWidth || 1) / (windo
 camera.position.set(2.6, 1.9, 3.4);
 fitRenderer();
 
-const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+try {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+} catch (err) {
+  console.warn('окружение не собралось:', err);
+}
 
 scene.add(new THREE.HemisphereLight(0x8fb4ff, 0x080a14, 0.65));
 

@@ -36,6 +36,10 @@ const CSS = `
   text-align: center;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
 }
+#diag.fatal {
+  pointer-events: auto;
+  user-select: text;
+}
 #diag.fatal .big {
   display: block;
   font-size: 15px;
@@ -75,8 +79,21 @@ export function installDiagnostics(title = '3D') {
     render();
   };
 
-  addEventListener('error', (e) => showError(e.message || e.error));
+  addEventListener('error', (e) => showError(e.message || e.error), true);
   addEventListener('unhandledrejection', (e) => showError(e.reason?.message || e.reason));
+
+  // ресурс не загрузился: важно знать, какой именно (в превью это частая причина)
+  addEventListener(
+    'error',
+    (e) => {
+      const t = e.target;
+      if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK' || t.tagName === 'IMG')) {
+        const url = t.src || t.href || '?';
+        showError(`не загрузился ${t.tagName.toLowerCase()}: ${url.split('/').slice(-1)[0]}`);
+      }
+    },
+    true,
+  );
 
   return {
     /** короткая строка состояния; bad=true — красным */
@@ -102,9 +119,17 @@ export function webglSupport() {
   try {
     const c = document.createElement('canvas');
     const gl2 = c.getContext('webgl2');
-    if (gl2) return { ok: true, version: 'WebGL2', name: rendererName(gl2) };
+    if (gl2) {
+      const res = { ok: true, version: 'WebGL2', name: rendererName(gl2) };
+      gl2.getExtension('WEBGL_lose_context')?.loseContext();
+      return res;
+    }
     const gl1 = c.getContext('webgl') || c.getContext('experimental-webgl');
-    if (gl1) return { ok: true, version: 'WebGL1', name: rendererName(gl1) };
+    if (gl1) {
+      const res = { ok: true, version: 'WebGL1', name: rendererName(gl1) };
+      gl1.getExtension('WEBGL_lose_context')?.loseContext();
+      return res;
+    }
     return { ok: false, version: 'нет', name: 'браузер не выдал контекст' };
   } catch (err) {
     return { ok: false, version: 'нет', name: String(err?.message || err) };

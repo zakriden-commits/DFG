@@ -52,7 +52,13 @@ const damp = THREE.MathUtils.damp;
 /* --------------------------------- сцена --------------------------------- */
 
 const canvas = document.getElementById('scene');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+} catch (err) {
+  diag.fatal('Не удалось создать 3D-рендерер', String(err?.message || err));
+  throw err;
+}
 
 /** В iframe превью канвас может родиться с нулевым размером — подгоняем постоянно */
 function fitRenderer() {
