@@ -18,6 +18,14 @@ if (!gl.ok) {
   throw new Error('webgl-unavailable');
 }
 diag.status(`WebGL: ${gl.version} · ${gl.name}`);
+{
+  const el = document.getElementById('iGL');
+  if (el) {
+    el.textContent = gl.ok ? `${gl.version} ✓` : 'НЕДОСТУПЕН';
+    el.className = gl.ok ? 'good' : 'bad';
+    el.title = gl.name;
+  }
+}
 
 /* --------------------------------- сцена --------------------------------- */
 
@@ -218,13 +226,21 @@ function clearModel() {
 
 const loader = new GLTFLoader();
 
-async function loadGLB(url, name) {
+async function loadGLB(url, name, timeoutMs = 15000) {
   // Vite на неизвестный путь отдаёт index.html — проверяем, что это правда GLB
-  const res = await fetch(url, { cache: 'no-store' });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  let res;
+  try {
+    res = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const type = res.headers.get('content-type') || '';
   if (type.includes('text/html')) throw new Error('файл не найден');
   const buffer = await res.arrayBuffer();
+  if (buffer.byteLength < 1024) throw new Error('файл пустой');
   if (buffer.byteLength < 12) throw new Error('пустой файл');
   const gltf = await new Promise((resolve, reject) => {
     loader.parse(buffer, '', resolve, reject);
@@ -582,17 +598,21 @@ addEventListener('resize', () => fitRenderer());
 new ResizeObserver(() => fitRenderer()).observe(canvas);
 
 async function boot() {
-  // сначала пробуем модель из репозитория
+  // сцену крутим сразу: даже если модель не приедет, экран не будет пустым
+  animate();
+  requestAnimationFrame(() => {
+    ui.loading.classList.add('done');
+    setTimeout(() => ui.loading.classList.add('hidden'), 400);
+  });
+
   try {
     await loadGLB('assets/models/character.glb', 'character.glb');
     toast('Модель загружена из assets/models/character.glb');
   } catch (err) {
+    console.warn('[load]', err);
     setModel(buildMannequin(), [], 'манекен');
-    toast('Модель не найдена — показываю манекен. Загрузи свой GLB кнопкой сверху.');
+    toast('Модель не загрузилась — показываю манекен. Можно подгрузить свой GLB.', 5000);
   }
-  ui.loading.classList.add('done');
-  setTimeout(() => ui.loading.classList.add('hidden'), 600);
-  animate();
 }
 
 boot();

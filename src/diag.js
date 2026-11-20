@@ -24,10 +24,17 @@ const CSS = `
 #diag .bad { color: #ff6b7a; }
 #diag .warn { color: #ffcc66; }
 #diag.fatal {
-  border-color: rgba(255, 90, 110, 0.6);
-  background: rgba(30, 6, 10, 0.9);
+  left: 50%;
+  bottom: 50%;
+  transform: translate(-50%, 50%);
+  border-color: rgba(255, 90, 110, 0.7);
+  background: rgba(30, 6, 10, 0.94);
   color: #ffd9de;
-  font-size: 13px;
+  font-size: 14px;
+  padding: 20px 26px;
+  max-width: min(520px, calc(100vw - 32px));
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
 }
 #diag.fatal .big {
   display: block;

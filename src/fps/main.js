@@ -83,6 +83,11 @@ camera.rotation.order = 'YXZ';
 scene.add(camera);
 fitRenderer();
 
+canvas.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();
+  diag.fatal('Потерян 3D-контекст', 'GPU отвалился — перезагрузи страницу. Если повторяется, открой её в отдельной вкладке.');
+});
+
 /* свет: луна + очень слабая заливка + фонарик в руках */
 const moon = new THREE.DirectionalLight(0xa9c2ff, 1.15);
 moon.position.set(-14, 26, -10);
@@ -110,6 +115,22 @@ camera.add(flashlight.target);
 const glow = new THREE.PointLight(0x9dc4ff, 6, 9, 1.6);
 glow.position.set(0, 1.2, 0);
 camera.add(glow);
+
+/* луна: большой диск в небе — сразу видно, что 3D рисуется */
+const moonDisc = new THREE.Mesh(
+  new THREE.CircleGeometry(6, 48),
+  new THREE.MeshBasicMaterial({ color: 0xdfe8ff, fog: false }),
+);
+moonDisc.position.set(-40, 46, -70);
+moonDisc.lookAt(0, 2, 0);
+scene.add(moonDisc);
+const moonHalo = new THREE.Mesh(
+  new THREE.CircleGeometry(13, 48),
+  new THREE.MeshBasicMaterial({ color: 0x5f79b8, transparent: true, opacity: 0.35, fog: false, depthWrite: false }),
+);
+moonHalo.position.copy(moonDisc.position).multiplyScalar(1.02);
+moonHalo.lookAt(0, 2, 0);
+scene.add(moonHalo);
 
 /* ------------------------------- окружение ------------------------------- */
 
@@ -255,7 +276,14 @@ scene.add(michael.holder);
 michael.holder.position.copy(michael.pos);
 
 async function loadMichael() {
-  const res = await fetch('assets/models/character.glb', { cache: 'no-store' });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  let res;
+  try {
+    res = await fetch('assets/models/character.glb', { cache: 'no-store', signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const buf = await res.arrayBuffer();
   const gltf = await new Promise((resolve, reject) => loader.parse(buf, '', resolve, reject));
@@ -408,6 +436,7 @@ const ui = {
   hud: document.getElementById('hud'),
   start: document.getElementById('start'),
   startBtn: document.getElementById('startBtn'),
+  glState: document.getElementById('glState'),
   state: document.getElementById('imState'),
   dist: document.getElementById('imDist'),
   me: document.getElementById('imMe'),
@@ -468,6 +497,22 @@ document.addEventListener('pointerlockchange', () => {
   if (locked) ui.hint?.classList.add('hidden');
   else ui.hint?.classList.remove('hidden');
 });
+
+{
+  const note = document.getElementById('glNote');
+  if (note) {
+    note.textContent = gl.ok ? `3D: ${gl.version} ✓ · ${gl.name}` : '3D: WebGL недоступен в этом окне — открой в новой вкладке';
+    note.className = gl.ok ? 'gl-note' : 'gl-note bad';
+  }
+}
+{
+  const el = ui.glState;
+  if (el) {
+    el.textContent = gl.ok ? `${gl.version} ✓` : 'НЕДОСТУПЕН';
+    el.className = gl.ok ? 'good' : 'bad';
+    el.title = gl.name;
+  }
+}
 
 ui.startBtn.addEventListener('click', async () => {
   ui.start.classList.add('hidden');
