@@ -13,6 +13,8 @@ function copyModels() {
 }
 
 export default defineConfig({
+  // относительные пути: работает и на localhost, и на GitHub Pages в подпапке
+  base: './',
   plugins: [copyModels()],
   server: {
     host: '0.0.0.0',
