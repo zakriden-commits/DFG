@@ -588,8 +588,8 @@ function animate() {
   camera.position.lerp(camTarget.clone().add(offset), 1 - Math.exp(-6 * dt));
   camera.lookAt(camTarget);
 
-  // --- скелет и свет ---
-  if (state.skeleton) state.skeleton.update();
+  // --- свет ---
+  // SkeletonHelper.update() в three r169 больше нет — он обновляется сам через updateMatrixWorld
   key.position.set(state.holder.position.x + 4, 7, state.holder.position.z + 5);
   key.target.position.copy(state.holder.position);
   key.target.updateMatrixWorld();

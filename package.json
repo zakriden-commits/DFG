@@ -16,7 +16,8 @@
     "model:export": "node tools/export-walk-glb.mjs google_drive/michael_myers.glb assets/models/character.glb stalker",
     "verify:export": "node test/verify-export.mjs assets/models/character.glb",
     "chase": "node test/fps-chase.mjs",
-    "serve": "vite build && vite preview --host 0.0.0.0 --port 5173"
+    "serve": "vite build && vite preview --host 0.0.0.0 --port 5173",
+    "check": "node test/api-check.mjs"
   },
   "repository": {
     "type": "git",
