@@ -3,6 +3,17 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { HumanoidRig } from '../anim/humanoidRig.js';
 import { resolveConfig, analyzeFootPlant } from '../anim/walkClip.js';
 import { makeAgent, updateChase } from './chase.js';
+import { installDiagnostics, webglSupport } from '../diag.js';
+
+const diag = installDiagnostics('MICHAEL');
+const gl = webglSupport();
+if (!gl.ok) {
+  diag.fatal(
+    'WebGL недоступен в этом окне',
+    'Браузер не выдал 3D-контекст. Открой страницу в отдельной вкладке (кнопка ⤢ в превью) — в iframe 3D иногда блокируется.',
+  );
+  throw new Error('webgl-unavailable');
+}
 
 /**
  * Первое лицо: ты в ночном лесу, Michael Myers идёт за тобой.
@@ -42,23 +53,38 @@ const damp = THREE.MathUtils.damp;
 
 const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
+
+/** В iframe превью канвас может родиться с нулевым размером — подгоняем постоянно */
+function fitRenderer() {
+  const w = Math.max(1, canvas.clientWidth || innerWidth || 1);
+  const h = Math.max(1, canvas.clientHeight || innerHeight || 1);
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  const bw = Math.floor(w * dpr);
+  const bh = Math.floor(h * dpr);
+  if (canvas.width === bw && canvas.height === bh) return false;
+  renderer.setPixelRatio(dpr);
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  return true;
+}
+
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x05070c);
-scene.fog = new THREE.Fog(0x05070c, 7, 44);
+scene.background = new THREE.Color(0x060a12);
+scene.fog = new THREE.Fog(0x060a12, 8, 46);
 
-const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 260);
+const camera = new THREE.PerspectiveCamera(72, (innerWidth || 1) / (innerHeight || 1), 0.05, 260);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
+fitRenderer();
 
 /* свет: луна + очень слабая заливка + фонарик в руках */
-const moon = new THREE.DirectionalLight(0x9fb8ff, 0.62);
+const moon = new THREE.DirectionalLight(0xa9c2ff, 1.15);
 moon.position.set(-14, 26, -10);
 moon.castShadow = true;
 moon.shadow.mapSize.set(2048, 2048);
@@ -72,13 +98,18 @@ moon.shadow.bias = -0.0012;
 scene.add(moon);
 scene.add(moon.target);
 
-scene.add(new THREE.HemisphereLight(0x2a3a58, 0x04060a, 0.45));
+scene.add(new THREE.HemisphereLight(0x3a5480, 0x0a0f18, 1.0));
 
-const flashlight = new THREE.SpotLight(0xfff2d8, 70, 40, 0.52, 0.62, 1.15);
+const flashlight = new THREE.SpotLight(0xfff2d8, 140, 55, 0.6, 0.55, 1.1);
 flashlight.position.set(0, -0.12, 0.1);
 flashlight.target.position.set(0, -0.1, -1);
 camera.add(flashlight);
 camera.add(flashlight.target);
+
+// слабый «фонарь под ногами»: пол виден даже если луч смотрит в небо
+const glow = new THREE.PointLight(0x9dc4ff, 6, 9, 1.6);
+glow.position.set(0, 1.2, 0);
+camera.add(glow);
 
 /* ------------------------------- окружение ------------------------------- */
 
@@ -408,8 +439,18 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
 addEventListener('blur', () => keys.clear());
 
+let dragLook = false; // fallback, если iframe не даёт захватить курсор
+let dragging = false;
+
+canvas.addEventListener('mousedown', () => {
+  dragging = true;
+});
+addEventListener('mouseup', () => {
+  dragging = false;
+});
+
 addEventListener('mousemove', (e) => {
-  if (!locked) return;
+  if (!locked && !(dragLook && dragging)) return;
   player.yaw -= e.movementX * CFG.lookSpeed;
   player.pitch = clamp(player.pitch - e.movementY * CFG.lookSpeed, -1.25, 1.05);
 });
@@ -440,6 +481,14 @@ ui.startBtn.addEventListener('click', async () => {
   try {
     canvas.requestPointerLock?.();
   } catch {}
+  // не получилось захватить курсор (iframe без allow="pointer-lock") — даём обзор мышью
+  setTimeout(() => {
+    if (locked || dragLook) return;
+    dragLook = true;
+    toast('Обзор: зажми левую кнопку мыши и веди', 3600);
+    ui.hint.textContent = 'WASD — идти · Shift — бежать · зажми ЛКМ и веди — обзор';
+    ui.hint.classList.remove('hidden');
+  }, 600);
 });
 
 /* ------------------------------- движение -------------------------------- */
@@ -585,8 +634,25 @@ function updateHud(dt, info) {
 
 const clock = new THREE.Clock();
 
+let fpsAccum = 0;
+let fpsFrames = 0;
+let frameNo = 0;
+
 function animate() {
   const dt = Math.min(clock.getDelta(), 0.05);
+
+  if (frameNo++ % 20 === 0) fitRenderer();
+
+  fpsAccum += dt;
+  fpsFrames++;
+  if (fpsAccum > 0.5) {
+    const fps = Math.round(fpsFrames / fpsAccum);
+    diag.status(
+      `${gl.version} · ${fps} fps · Майкл: ${michael.ready ? 'в сцене' : 'загружается…'} · ${started ? `дистанция ${michael.pos.distanceTo(player.pos).toFixed(1)} м` : '"ВОЙТИ"'}`,
+    );
+    fpsAccum = 0;
+    fpsFrames = 0;
+  }
 
   if (started) {
     movePlayer(dt);
@@ -600,11 +666,8 @@ function animate() {
   requestAnimationFrame(animate);
 }
 
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
+addEventListener('resize', () => fitRenderer());
+new ResizeObserver(() => fitRenderer()).observe(canvas);
 
 /* --------------------------------- старт --------------------------------- */
 

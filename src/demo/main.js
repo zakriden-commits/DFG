@@ -6,13 +6,39 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { HumanoidRig } from '../anim/humanoidRig.js';
 import { buildWalkClip, buildIdleClip, analyzeFootPlant, resolveConfig } from '../anim/walkClip.js';
 import { buildMannequin } from '../anim/mannequin.js';
+import { installDiagnostics, webglSupport } from '../diag.js';
+
+const diag = installDiagnostics('РИГ');
+const gl = webglSupport();
+if (!gl.ok) {
+  diag.fatal(
+    'WebGL недоступен в этом окне',
+    'Браузер не выдал 3D-контекст. Открой страницу в отдельной вкладке (кнопка ⤢ в превью) — в iframe 3D иногда блокируется.',
+  );
+  throw new Error('webgl-unavailable');
+}
+diag.status(`WebGL: ${gl.version} · ${gl.name}`);
 
 /* --------------------------------- сцена --------------------------------- */
 
 const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
+
+/** В iframe превью канвас может родиться с нулевым размером — подгоняем постоянно */
+function fitRenderer() {
+  const w = Math.max(1, canvas.clientWidth || window.innerWidth || 1);
+  const h = Math.max(1, canvas.clientHeight || window.innerHeight || 1);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const bw = Math.floor(w * dpr);
+  const bh = Math.floor(h * dpr);
+  if (canvas.width === bw && canvas.height === bh) return false;
+  renderer.setPixelRatio(dpr);
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  return true;
+}
+
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -23,8 +49,9 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x05070f);
 scene.fog = new THREE.FogExp2(0x05070f, 0.055);
 
-const camera = new THREE.PerspectiveCamera(46, window.innerWidth / window.innerHeight, 0.05, 200);
+const camera = new THREE.PerspectiveCamera(46, (window.innerWidth || 1) / (window.innerHeight || 1), 0.05, 200);
 camera.position.set(2.6, 1.9, 3.4);
+fitRenderer();
 
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -222,6 +249,7 @@ async function loadFile(file) {
 function setModel(root, animations, name) {
   clearModel();
   state.modelName = name;
+  diag.status(`WebGL: ${gl.version} · модель: ${name}`);
 
   // нормализуем размер: рост ~1.85 м, ступни на полу
   root.updateWorldMatrix(true, true);
@@ -550,11 +578,8 @@ function animate() {
 
 /* ------------------------------- старт --------------------------------- */
 
-addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
+addEventListener('resize', () => fitRenderer());
+new ResizeObserver(() => fitRenderer()).observe(canvas);
 
 async function boot() {
   // сначала пробуем модель из репозитория
