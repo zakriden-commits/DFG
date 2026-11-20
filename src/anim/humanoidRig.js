@@ -36,9 +36,12 @@ function tokensOf(name) {
 
 function typeOf(name) {
   const toks = tokensOf(name);
-  const j = toks.join('');
+  const raw = toks.join('');
+  if (!raw) return null;
+  if (SKIP_WORDS.test(raw)) return null;
+  // цифры в конце — нумерация костей (Spine1_03, LeftLeg_056), для смысла не важны
+  const j = raw.replace(/[0-9]+/g, '');
   if (!j) return null;
-  if (SKIP_WORDS.test(j)) return null;
   if (/(hips?|pelvis)$/.test(j) || toks.includes('pelvis') || toks.includes('hip')) return 'hips';
   if (j.includes('headtop') || j.includes('headend')) return null;
   if (toks.includes('head')) return 'head';
@@ -75,8 +78,9 @@ export class HumanoidRig {
   /**
    * @param {THREE.Object3D} root — загруженная сцена/модель (rest pose)
    */
-  constructor(root) {
+  constructor(root, options = {}) {
     this.root = root;
+    this.groundYOverride = options.groundY;
     root.updateWorldMatrix(true, true);
 
     this.allBones = [];
@@ -153,8 +157,14 @@ export class HumanoidRig {
     }
 
     if (!this.bones.hips) {
-      this.bones.hips = this.guessHips();
-      this.warnings.push('Кости не подписаны: hips определён геометрически');
+      const hipsByLegs = this.findHipsFromLegs();
+      if (hipsByLegs) {
+        this.bones.hips = hipsByLegs;
+        this.warnings.push(`hips определён по бёдрам: ${hipsByLegs.name}`);
+      } else {
+        this.bones.hips = this.guessHips();
+        this.warnings.push('Кости не подписаны: hips определён геометрически');
+      }
     }
     if (!this.bones.spine && this.bones.chest) {
       this.bones.spine = this.bones.chest;
@@ -164,6 +174,22 @@ export class HumanoidRig {
     for (const key of SEMANTIC) {
       if (!this.bones[key]) this.warnings.push(`нет кости: ${key}`);
     }
+  }
+
+  /** Ближайший общий родитель бёдер — это и есть таз */
+  findHipsFromLegs() {
+    const tL = this.bones.thighL;
+    const tR = this.bones.thighR;
+    if (!tL || !tR) return null;
+    const ancestors = new Set();
+    let p = tL.parent;
+    while (p) {
+      ancestors.add(p);
+      p = p.parent;
+    }
+    let q = tR.parent;
+    while (q && !ancestors.has(q)) q = q.parent;
+    return q && q.isBone ? q : null;
   }
 
   guessHips() {
@@ -268,17 +294,37 @@ export class HumanoidRig {
       this.rest.get('toeL') && this.rest.get('footL')
         ? this.rest.get('toeL').worldPos.distanceTo(this.rest.get('footL').worldPos)
         : this.legLength * 0.14;
-    // земля / низ подошвы в rest-позе
+    // смещения подошвы относительно лодыжки (жёстко в системе стопы)
+    this.footOffsets = {};
     let soleY = Infinity;
     for (const side of ['L', 'R']) {
       const footBone = this.bones['foot' + side];
       if (!footBone) continue;
-      const p = footBone.getWorldPosition(new THREE.Vector3());
+      const ankle = footBone.getWorldPosition(new THREE.Vector3());
       const toe = this.bones['toe' + side];
-      const toeY = toe ? toe.getWorldPosition(new THREE.Vector3()).y : p.y;
-      soleY = Math.min(soleY, p.y - this.legLength * 0.085, toeY - this.legLength * 0.03);
+      const toeW = toe ? toe.getWorldPosition(new THREE.Vector3()) : null;
+      const fwd = new THREE.Vector3();
+      if (toeW) fwd.subVectors(toeW, ankle);
+      else fwd.copy(this.axes.forward);
+      fwd.y = 0;
+      if (fwd.lengthSq() < 1e-8) fwd.copy(this.axes.forward);
+      fwd.normalize();
+
+      const heel = new THREE.Vector3()
+        .copy(fwd)
+        .multiplyScalar(-this.legLength * 0.055)
+        .add(new THREE.Vector3(0, -this.legLength * 0.085, 0));
+      const ball = (toeW ? toeW.clone() : ankle.clone().addScaledVector(fwd, this.legLength * 0.14))
+        .sub(ankle)
+        .add(new THREE.Vector3(0, -this.legLength * 0.03, 0));
+
+      this.footOffsets[side] = { heel, ball };
+      soleY = Math.min(soleY, ankle.y + heel.y, ankle.y + ball.y);
     }
     this.groundY = Number.isFinite(soleY) ? soleY : 0;
+    if (Number.isFinite(this.groundYOverride)) this.groundY = this.groundYOverride;
+    // сколько «метров» в одной единице модели (масштаб неизвестен — считаем рост 1.8 м)
+    this.metersPerUnit = this.height > 1e-6 ? 1.8 / this.height : 1;
   }
 
   has(key) {
@@ -293,6 +339,24 @@ export class HumanoidRig {
     const bone = this.bones[key];
     if (!bone) return null;
     return bone.getWorldPosition(out);
+  }
+
+  /**
+   * Точки подошвы: пятка и подушечка. Считаются как жёстко прикреплённые
+   * к стопе смещения, повёрнутые её текущей ориентацией.
+   */
+  solePoints(side, out = { heel: new THREE.Vector3(), ball: new THREE.Vector3() }) {
+    const foot = this.bones['foot' + side];
+    const rest = this.rest.get('foot' + side);
+    const offsets = this.footOffsets?.[side];
+    if (!foot || !rest || !offsets) return null;
+    const ankle = foot.getWorldPosition(new THREE.Vector3());
+    const delta = foot
+      .getWorldQuaternion(new THREE.Quaternion())
+      .multiply(rest.worldQuat.clone().invert());
+    out.heel.copy(offsets.heel).applyQuaternion(delta).add(ankle);
+    out.ball.copy(offsets.ball).applyQuaternion(delta).add(ankle);
+    return out;
   }
 
   /** Длина сегмента: расстояние до дочерней кости */

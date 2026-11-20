@@ -4,7 +4,7 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { HumanoidRig } from '../anim/humanoidRig.js';
-import { buildWalkClip, buildIdleClip } from '../anim/walkClip.js';
+import { buildWalkClip, buildIdleClip, analyzeFootPlant, resolveConfig } from '../anim/walkClip.js';
 import { buildMannequin } from '../anim/mannequin.js';
 
 /* --------------------------------- сцена --------------------------------- */
@@ -142,7 +142,7 @@ function setInfo() {
   ui.conv.textContent = state.rig ? detectConvention() : '—';
   ui.idle.textContent = state.hasOwnIdle ? 'свой клип из GLB' : 'процедурный';
   ui.idle.className = state.hasOwnIdle ? 'good' : '';
-  ui.walk.textContent = state.walkClip ? 'процедурная (IK)' : '—';
+  ui.walk.textContent = state.walkClip ? (state.hasBakedWalk ? 'клип из GLB' : 'процедурная (IK)') : '—';
   ui.walk.className = state.walkClip ? 'good' : 'bad';
   ui.step.textContent = state.walkCfg
     ? `${state.walkCfg.strideS * 2} м · ${(2 / state.walkCfg.duration).toFixed(1)} ш/с`
@@ -179,6 +179,7 @@ function clearModel() {
   state.walkAction = null;
   state.walkClip = null;
   state.hasOwnIdle = false;
+  state.hasBakedWalk = false;
   state.showSkeleton = state.showSkeleton || false;
 }
 
@@ -284,7 +285,23 @@ function setModel(root, animations, name) {
     state.walkClip = null;
   } else {
     ui.warn.classList.add('hidden');
-    buildWalk(state.preset);
+    // если в файле уже есть готовый клип ходьбы — играем его, иначе строим сами
+    const bakedWalk = animations.find((a) => /walk|ходьб|run/i.test(a.name || ''));
+    if (bakedWalk) {
+      const cfg = resolveConfig(rig, { preset: state.preset });
+      const diag = analyzeFootPlant(rig, cfg);
+      state.walkCfg = cfg;
+      state.hasBakedWalk = true;
+      state.matchedSpeed = diag.matchedSpeed || 1.8;
+      state.walkClip = bakedWalk;
+      state.walkAction = state.mixer.clipAction(bakedWalk);
+      state.walkAction.play();
+      state.walkAction.setEffectiveWeight(0);
+      state.walkDiagnostics = diag;
+      console.info('[walk] из GLB', diag);
+    } else {
+      buildWalk(state.preset);
+    }
   }
 
   if (state.skeleton) {
@@ -309,8 +326,10 @@ function buildWalk(preset) {
     state.walkAction = null;
   }
   const { clip, diagnostics, cfg } = buildWalkClip(state.rig, { preset });
+  state.hasBakedWalk = false;
   state.walkClip = clip;
   state.walkCfg = cfg;
+  state.walkDiagnostics = diagnostics;
   state.matchedSpeed = diagnostics.matchedSpeed || 1.8;
   state.walkAction = state.mixer.clipAction(clip);
   state.walkAction.play();

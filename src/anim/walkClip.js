@@ -25,13 +25,14 @@ export const WALK_PRESETS = {
   stalker: {
     name: 'walk',
     duration: 0.8,
-    strideS: 0.36, // половина шага (м) → скорость = 4S/T ≈ 1.8 м/с
-    footLift: 0.125,
+    strideFrac: 0.409, // половина шага в долях длины ноги
+    liftFrac: 0.142,
     heelAngle: 7 * DEG,
     toeAngle: 17 * DEG,
     ankleClear: 9 * DEG,
     reach: 0.985,
-    crouch: 0.012,
+    crouchFrac: 0.02,
+    absorb: 0.032, // амортизация в середине опоры — таз не «подпрыгивает»
     lean: 8 * DEG,
     chestLean: 2 * DEG,
     hipPitch: 2 * DEG,
@@ -53,13 +54,13 @@ export const WALK_PRESETS = {
   calm: {
     name: 'walk_calm',
     duration: 1.06,
-    strideS: 0.3,
-    footLift: 0.08,
+    strideFrac: 0.341,
+    liftFrac: 0.091,
     heelAngle: 6 * DEG,
     toeAngle: 14 * DEG,
     ankleClear: 7 * DEG,
     reach: 0.98,
-    crouch: 0.006,
+    crouchFrac: 0.0068,
     lean: 3 * DEG,
     chestLean: 0.5 * DEG,
     hipPitch: 0,
@@ -78,6 +79,18 @@ export const WALK_PRESETS = {
     samples: 40,
   },
 };
+
+/** Приводит пресет к абсолютным единицам конкретной модели */
+export function resolveConfig(rig, options = {}) {
+  const presetName = options.preset || 'stalker';
+  const base = WALK_PRESETS[presetName] || WALK_PRESETS.stalker;
+  const cfg = { ...base, ...options };
+  const leg = rig?.legLength || 0.88;
+  cfg.strideS = (options.strideFrac ?? base.strideFrac) * leg;
+  cfg.footLift = (options.liftFrac ?? base.liftFrac) * leg;
+  cfg.crouch = (options.crouchFrac ?? base.crouchFrac) * leg;
+  return cfg;
+}
 
 /** Траектория одной стопы (в системе координат тела) */
 export function legTarget(q, cfg, rig) {
@@ -106,11 +119,7 @@ export function legTarget(q, cfg, rig) {
     pitch = clear + heel;
   }
 
-  // при опущенном носке стопа «растёт» в высоте — поднимаем лодыжку
-  const footLen = rig?.footLength || 0.13;
-  const pitchLift = Math.max(0, -pitch) * footLen * 0.5;
-
-  return { forward, lift, pitch, pitchLift, stance };
+  return { forward, lift, pitch, stance };
 }
 
 const _v = new THREE.Vector3();
@@ -131,10 +140,10 @@ export function solveLeg(rig, side, target, pitch) {
   const hip = rig.worldPos(thighKey, _v).clone();
   const toTarget = _v2.copy(target).sub(hip);
   const dist = toTarget.length();
-  if (dist < 1e-4) return false;
+  if (dist < (a + b) * 1e-4) return false;
 
   const maxD = (a + b) * 0.9995;
-  const minD = Math.abs(a - b) + 0.01;
+  const minD = Math.abs(a - b) + Math.min(a, b) * 0.01;
   const d = clamp(dist, minD, maxD);
   const dir = toTarget.normalize();
 
@@ -179,36 +188,51 @@ export function applyWalkPose(rig, phase, cfg) {
   const tL = legTarget(phase, cfg, rig);
   const tR = legTarget(phase + 0.5, cfg, rig);
 
-  const ankleY = (t) => rig.ankleRestHeight + t.lift + t.pitchLift;
+  // высота лодыжки из условия: подошва (пятка/носок) ровно на земле + подъём
+  const ankleY = (side, t) => {
+    const offsets = rig.footOffsets?.[side];
+    if (!offsets) return rig.ankleRestHeight + t.lift;
+    const q = new THREE.Quaternion().setFromAxisAngle(rig.axes.right, t.pitch);
+    const heelY = _v.copy(offsets.heel).applyQuaternion(q).y;
+    const ballY = _v2.copy(offsets.ball).applyQuaternion(q).y;
+    return rig.groundY + t.lift - Math.min(heelY, ballY);
+  };
 
   // максимальная высота таза, при которой обе ноги дотягиваются до целей
   const reach = cfg.reach ?? 0.985;
   const maxLen = rig.legLength * reach;
   const hw = rig.hipHalfWidth;
+  const L = rig.legLength;
   let h = Infinity;
-  for (const t of [tL, tR]) {
-    const freeV = Math.sqrt(Math.max(0.0025, maxLen * maxLen - t.forward * t.forward - hw * hw));
-    h = Math.min(h, ankleY(t) + freeV);
+  for (const [side, t] of [['L', tL], ['R', tR]]) {
+    const freeV = Math.sqrt(
+      Math.max(L * L * 0.0025, maxLen * maxLen - t.forward * t.forward - hw * hw),
+    );
+    h = Math.min(h, ankleY(side, t) + freeV);
   }
   h -= cfg.crouch || 0;
-  h = clamp(h, rig.hipJointHeight - 0.18, rig.hipJointHeight + 0.02);
+  // амортизация: в середине опоры колено мягко сгибается, иначе таз скачет
+  h -= (cfg.absorb || 0) * L * Math.sin(TAU * phase) ** 2;
+  // допуски в долях длины ноги, чтобы работать в любых единицах модели
+  // верхний предел чуть ниже rest: колени никогда не выпрямляются в замок
+  h = clamp(h, rig.hipJointHeight - L * 0.2, rig.hipJointHeight - L * 0.045);
   const dy = h - rig.hipJointHeight;
 
   const s = Math.sin(TAU * phase);
   const c = Math.cos(TAU * phase);
 
   // ---- таз ----
-  rig.pose('hips', cfg.hipPitch + cfg.lean * 0.3, cfg.hipYaw * s, cfg.hipRoll * -s);
+  rig.pose('hips', -(cfg.hipPitch + cfg.lean * 0.3), cfg.hipYaw * s, cfg.hipRoll * -s);
   rig.offset('hips', cfg.sway * rig.legLength * s, dy, 0);
 
   // ---- корпус ----
   if (rig.has('spine')) {
-    rig.pose('spine', cfg.lean * 0.45, -cfg.hipYaw * s * cfg.chestYaw, 0);
+    rig.pose('spine', -cfg.lean * 0.45, -cfg.hipYaw * s * cfg.chestYaw, 0);
   }
   if (rig.has('chest')) {
     rig.pose(
       'chest',
-      cfg.lean * 0.45 + cfg.chestLean,
+      -(cfg.lean * 0.45 + cfg.chestLean),
       -cfg.hipYaw * s * cfg.chestYaw * 1.2,
       cfg.hipRoll * s * 0.4,
     );
@@ -216,12 +240,12 @@ export function applyWalkPose(rig, phase, cfg) {
 
   // ---- голова: держит горизонт, но склонена набок ----
   if (rig.has('neck')) {
-    rig.pose('neck', -cfg.lean * 0.3 + cfg.headNod * c, cfg.headYaw * cfg.hipYaw * s, 0);
+    rig.pose('neck', cfg.lean * 0.3 + cfg.headNod * c, cfg.headYaw * cfg.hipYaw * s, 0);
   }
   if (rig.has('head')) {
     rig.pose(
       'head',
-      -cfg.lean * 0.5 + cfg.headNod * c * 0.5,
+      cfg.lean * 0.5 + cfg.headNod * c * 0.5,
       cfg.headYaw * cfg.hipYaw * s * 0.6,
       cfg.headTilt + Math.sin(TAU * phase + 0.6) * cfg.headTilt * 0.15,
     );
@@ -240,14 +264,16 @@ export function applyWalkPose(rig, phase, cfg) {
       rig.pose('upperArm' + side, armPitch, 0, sign * out);
     }
     if (rig.has('forearm' + side)) {
+      // t.lift — высота стопы в единицах модели, поэтому нормируем её в 0..1
+      const liftN = clamp((side === 'L' ? tL.lift : tR.lift) / (cfg.footLift || 1), 0, 1);
       const bend =
         cfg.elbow +
         cfg.elbowSwing * Math.max(0, -Math.cos(TAU * armPhase)) +
-        Math.abs(side === 'L' ? tL.lift : tR.lift) * 20 * cfg.elbowSwing;
-      rig.pose('forearm' + side, -bend, 0, 0);
+        liftN * cfg.elbowSwing * 2.5;
+      rig.pose('forearm' + side, bend, 0, 0);
     }
     if (rig.has('hand' + side)) {
-      rig.pose('hand' + side, -cfg.elbow * 0.25, 0, 0);
+      rig.pose('hand' + side, cfg.elbow * 0.35, 0, 0);
     }
   };
   putArm('L');
@@ -266,8 +292,18 @@ export function applyWalkPose(rig, phase, cfg) {
       .clone()
       .addScaledVector(rig.axes.lateral, sign * hw)
       .addScaledVector(rig.axes.forward, t.forward);
-    target.y = ankleY(t);
+    target.y = ankleY(side, t);
     solveLeg(rig, side, target, t.pitch);
+
+    // итеративная коррекция: подошва должна лежать ровно на нужной высоте
+    for (let k = 0; k < 2; k++) {
+      const pts = rig.solePoints(side);
+      if (!pts) break;
+      const err = Math.min(pts.heel.y, pts.ball.y) - (rig.groundY + t.lift);
+      if (Math.abs(err) < rig.legLength * 0.0004) break;
+      target.y -= err;
+      solveLeg(rig, side, target, t.pitch);
+    }
   };
 
   place('L', tL);
@@ -280,31 +316,13 @@ const POSED_KEYS = [
   'handL', 'handR', 'thighL', 'thighR', 'shinL', 'shinR', 'footL', 'footR',
 ];
 
-/** Точки подошвы (пятка / подушечка) в мире */
-export function solePoints(rig, side, out = { heel: new THREE.Vector3(), ball: new THREE.Vector3() }) {
-  const foot = rig.bones['foot' + side];
-  if (!foot) return null;
-  const ankle = foot.getWorldPosition(new THREE.Vector3());
-  const toe = rig.bones['toe' + side];
-  const toeW = toe ? toe.getWorldPosition(new THREE.Vector3()) : null;
-
-  const fwd = new THREE.Vector3();
-  if (toeW) fwd.subVectors(toeW, ankle);
-  else fwd.copy(rig.axes.forward);
-  fwd.y = 0;
-  if (fwd.lengthSq() < 1e-8) fwd.copy(rig.axes.forward);
-  fwd.normalize();
-
-  out.heel.copy(ankle).addScaledVector(fwd, -rig.legLength * 0.055);
-  out.heel.y -= rig.legLength * 0.085;
-  if (toeW) out.ball.copy(toeW);
-  else out.ball.copy(ankle).addScaledVector(fwd, rig.legLength * 0.14);
-  out.ball.y -= rig.legLength * 0.03;
-  return out;
+/** Точки подошвы (пятка / подушечка) в мире — из рига */
+export function solePoints(rig, side, out) {
+  return rig.solePoints(side, out);
 }
 
 function footLowestY(rig, side) {
-  const pts = solePoints(rig, side);
+  const pts = rig.solePoints(side);
   if (!pts) return null;
   return Math.min(pts.heel.y, pts.ball.y);
 }
@@ -358,6 +376,7 @@ export function analyzeFootPlant(rig, cfg) {
   return {
     measuredSpeed: +(forwardTravel / stanceTime).toFixed(3),
     theoreticalSpeed: +((4 * cfg.strideS) / cfg.duration).toFixed(3),
+    theoreticalSpeedMeters: +(((4 * cfg.strideS) / cfg.duration) * rig.metersPerUnit).toFixed(3),
     stepLength: +((forwardTravel / stanceTime) * cfg.duration * 0.5).toFixed(3),
     cadence: +(2 / cfg.duration).toFixed(2),
     stanceTime: +stanceTime.toFixed(3),
@@ -366,6 +385,13 @@ export function analyzeFootPlant(rig, cfg) {
     groundPenetration: +Math.max(0, -minRel).toFixed(4),
     stanceContactError: +stanceSpread.toFixed(4),
     groundY: +rig.groundY.toFixed(3),
+    // в метрах — не зависит от того, в каких единицах экспортирована модель
+    matchedSpeedMeters: +(forwardTravel / stanceTime * rig.metersPerUnit).toFixed(3),
+    stepLengthMeters: +(forwardTravel / stanceTime * cfg.duration * 0.5 * rig.metersPerUnit).toFixed(3),
+    footLiftMeters: +(maxSwing * rig.metersPerUnit).toFixed(3),
+    penetrationMeters: +(Math.max(0, -minRel) * rig.metersPerUnit).toFixed(4),
+    characterHeightMeters: +(rig.height * rig.metersPerUnit).toFixed(2),
+    unitsPerMeter: +(1 / rig.metersPerUnit).toFixed(2),
   };
 }
 
@@ -374,9 +400,7 @@ export function analyzeFootPlant(rig, cfg) {
  * @returns {{clip: THREE.AnimationClip, diagnostics: object, cfg: object}}
  */
 export function buildWalkClip(rig, options = {}) {
-  const preset = options.preset || 'stalker';
-  const base = WALK_PRESETS[preset] || WALK_PRESETS.stalker;
-  const cfg = { ...base, ...options };
+  const cfg = resolveConfig(rig, options);
 
   const samples = cfg.samples || 40;
   const times = [];
@@ -421,7 +445,8 @@ export function buildWalkClip(rig, options = {}) {
   const diagnostics = analyzeFootPlant(rig, cfg);
   diagnostics.trackCount = tracks.length;
   diagnostics.matchedSpeed = diagnostics.measuredSpeed || diagnostics.theoreticalSpeed;
-  diagnostics.strideS = cfg.strideS;
+  diagnostics.strideS = +cfg.strideS.toFixed(3);
+  diagnostics.preset = cfg.preset || options.preset || 'stalker';
 
   rig.resetPose();
   rig.update();

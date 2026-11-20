@@ -10,7 +10,11 @@
     "preview": "vite preview",
     "inspect:glb": "node tools/inspect-glb.mjs",
     "walk:sheet": "node test/preview-walk.mjs stalker",
-    "test:smoke": "node test/smoke-mannequin.mjs"
+    "test:smoke": "node test/smoke-mannequin.mjs",
+    "model:probe": "node test/probe-model.mjs",
+    "model:sheet": "node test/pose-sheet.mjs",
+    "model:export": "node tools/export-walk-glb.mjs google_drive/michael_myers.glb assets/models/character.glb stalker",
+    "verify:export": "node test/verify-export.mjs assets/models/character.glb"
   },
   "repository": {
     "type": "git",

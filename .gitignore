@@ -5,3 +5,6 @@ dist/
 test/_walk_*.png
 test/*.ppm
 assets/models/*.report.json
+
+# исходники моделей из Google Drive (в репозиторий идёт только готовый assets/models/*.glb)
+google_drive/
