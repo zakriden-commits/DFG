@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NAREZKA SASNOGO — умные нарезки из YouTube-интервью</title>
+<meta name="description" content="Вставь ссылку на YouTube-видео — получи 5–10 сильных нарезок по ≤30 секунд с жирными субтитрами. Ищем моменты по твоему описанию: «хабиб про Конора», «про отца и смерть»." />
+<link rel="icon" type="image/png" href="/assets/emblem.png" />
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<!-- ░░░░░░░░░░ NAV ░░░░░░░░░░ -->
+<header class="nav" id="top">
+  <a class="nav__brand" href="#top" aria-label="NAREZKA SASNOGO">
+    <img src="/assets/emblem.png" alt="Эмблема НАРЕЗКА САСНОГО" class="nav__emblem" />
+    <span class="nav__wordmark rainbow-text">NAREZKA&nbsp;SASNOGO</span>
+  </a>
+  <nav class="nav__links">
+    <a href="#tool">Нарезатор</a>
+    <a href="#how">Как работает</a>
+    <a href="#faq">Вопросы</a>
+  </nav>
+  <a href="#tool" class="btn btn--ghost nav__cta">Создать нарезки</a>
+</header>
+
+<!-- ░░░░░░░░░░ HERO ░░░░░░░░░░ -->
+<section class="hero">
+  <div class="hero__bg" aria-hidden="true"></div>
+  <div class="hero__veil" aria-hidden="true"></div>
+  <div class="hero__inner">
+    <div class="hero__badge"><span class="pulse-dot"></span> AI-МОНТАЖЁР · РАБОТАЕТ В РЕАЛЬНОМ ВРЕМЕНИ</div>
+    <h1 class="hero__title">
+      <span class="rainbow-text rainbow-glow">NAREZKA</span><br />
+      <span class="rainbow-text rainbow-glow rainbow-glow--delay">SASNOGO</span>
+    </h1>
+    <p class="hero__sub">Вставляешь ссылку на YouTube-интервью — получаешь <b>5–10 сильных моментов</b> по ≤ 30&nbsp;секунд с <b>жирными субтитрами</b>. Сайт сам понимает, где дерзкая фраза, где слеза, где панч-лайн.</p>
+    <div class="hero__cta-row">
+      <a href="#tool" class="btn btn--rainbow btn--xl">Создать нарезки ⚡</a>
+      <a href="#how" class="btn btn--ghost btn--xl">Как это работает ↓</a>
+    </div>
+    <ul class="hero__facts">
+      <li><span>⏱️</span> ≤ 30 секунд каждый клип</li>
+      <li><span>🎯</span> Поиск по твоему описанию</li>
+      <li><span>💬</span> Субтитры жирным шрифтом</li>
+      <li><span>🔥</span> Грусть, смех, драйв — всё находит</li>
+    </ul>
+  </div>
+  <div class="hero__shine" aria-hidden="true"></div>
+</section>
+
+<main>
+<!-- ░░░░░░░░░░ TOOL ░░░░░░░░░░ -->
+<section class="tool" id="tool">
+  <div class="section-head">
+    <div class="section-head__kicker">НАРЕЗАТОР 1.0</div>
+    <h2 class="section-head__title">Один <span class="rainbow-text">клик</span> — десяток моментов</h2>
+  </div>
+
+  <div class="tool-card" id="toolCard">
+    <div class="tool-card__border" aria-hidden="true"></div>
+    <div class="tool-card__inner">
+      <form id="jobForm" autocomplete="off">
+        <!-- step 1 -->
+        <label class="field">
+          <span class="field__label"><i>1</i> Ссылка на YouTube-видео</span>
+          <div class="field__control field__control--url">
+            <svg viewBox="0 0 24 24" class="yt-glyph" aria-hidden="true"><path fill="currentColor" d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+            <input id="urlInput" name="url" type="url" inputmode="url" required spellcheck="false"
+                   placeholder="https://www.youtube.com/watch?v=…  или  youtu.be/…" />
+            <button type="button" id="clearUrl" class="field__clear" title="Очистить" aria-label="Очистить">✕</button>
+          </div>
+        </label>
+
+        <!-- step 2 -->
+        <label class="field">
+          <span class="field__label"><i>2</i> Какой момент ищем <em>(необязательно)</em></span>
+          <div class="field__control">
+            <textarea id="descriptionInput" name="description" rows="2" maxlength="300"
+              placeholder="Например: хабиб про Конора — или про свой бой с Тибау…"></textarea>
+          </div>
+          <span class="field__hint">Если момент есть в видео — отметим его бейджом <b>🎯 По запросу</b>. Если нет — нарежем то, что считаем сильнейшим, без придумывания.</span>
+          <div class="chips" id="exampleChips">
+            <button type="button" class="chip" data-q="хабиб про Конора">хабиб про Конора</button>
+            <button type="button" class="chip" data-q="про отца и смерть">про отца и смерть</button>
+            <button type="button" class="chip" data-q="борьба с Тибау">борьба с Тибау</button>
+            <button type="button" class="chip" data-q="смешной момент про весы">смешной момент</button>
+            <button type="button" class="chip" data-q="про религию и тишину">про религию и тишину</button>
+          </div>
+        </label>
+
+        <!-- step 3 -->
+        <div class="field">
+          <span class="field__label"><i>3</i> Сколько нарезок делать</span>
+          <div class="segmented" id="countPicker" role="radiogroup" aria-label="Количество нарезок">
+            <button type="button" data-count="5">5</button>
+            <button type="button" data-count="8" class="is-active">8</button>
+            <button type="button" data-count="10">10</button>
+          </div>
+          <span class="field__hint">Меньше 5 — маловато, больше 10 — уже не нарезки, а фильм 🙂</span>
+        </div>
+
+        <button type="submit" id="goBtn" class="btn btn--rainbow btn--go">
+          <span class="btn--go__label">СОЗДАТЬ НАРЕЗКИ</span>
+          <span class="btn--go__zap">⚡</span>
+        </button>
+        <p class="fineprint">5–10 клипов · ≤ 30 сек · субтитры вшиты жирным · скачивание без водяных знаков</p>
+
+        <div class="divider"><span>или</span></div>
+
+        <button type="button" id="demoBtn" class="btn btn--demo">
+          ▶ Мгновенное демо: синтетическое интервью в стиле Хабиба <span class="btn--demo__note">(AI-голос, 3 мин)</span>
+        </button>
+      </form>
+
+      <!-- progress -->
+      <div class="progress" id="progressPanel" hidden>
+        <div class="progress__stages" id="stageList"></div>
+        <div class="progress__bar"><div class="progress__fill" id="progressFill"></div></div>
+        <div class="progress__status"><span id="progressMessage">…</span><span id="progressPct">0%</span></div>
+        <div class="console" id="logConsole" aria-live="polite"></div>
+        <button type="button" class="btn btn--ghost btn--small" id="cancelHintBtn" hidden>Можно подождать — обычно 1–3 минуты</button>
+      </div>
+
+      <!-- error -->
+      <div class="errorbox" id="errorBox" hidden>
+        <div class="errorbox__title">😵 Что-то пошло не так</div>
+        <div class="errorbox__text" id="errorText"></div>
+        <button type="button" class="btn btn--ghost btn--small" id="retryBtn">Попробовать ещё раз</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- results -->
+  <div class="results" id="resultsSection" hidden>
+    <div class="results__head">
+      <div>
+        <div class="section-head__kicker">ГОТОВО ✂️</div>
+        <h3 class="results__title" id="resultsTitle">Нарезки</h3>
+        <p class="results__meta" id="resultsMeta"></p>
+      </div>
+      <button class="btn btn--ghost btn--small" id="newRequestBtn">＋ Новый запрос</button>
+    </div>
+
+    <div class="match-banner" id="matchBanner" hidden></div>
+
+    <div class="filter-row" id="filterRow">
+      <button class="filter is-active" data-filter="all">Все</button>
+      <button class="filter filter--target" data-filter="match">🎯 По запросу</button>
+      <button class="filter" data-filter="motivation">🔥 Мотивация</button>
+      <button class="filter" data-filter="funny">😂 Смешные</button>
+      <button class="filter" data-filter="sad">😢 Грустные</button>
+      <button class="filter" data-filter="alpha">⚔️ Дерзкие</button>
+      <button class="filter" data-filter="calm">🧘 Философия</button>
+      <button class="filter" data-filter="love">❤️ Про близких</button>
+      <button class="filter" data-filter="shock">😲 Неожиданные</button>
+      <button class="filter" data-filter="story">🎙️ Сильные</button>
+    </div>
+
+    <div class="clips-grid" id="clipsGrid"></div>
+    <p class="empty-filter" id="emptyFilter" hidden>Под этот фильтр ничего не подошло — сдвинь фильтр 🙂</p>
+  </div>
+
+  <!-- recent -->
+  <div class="recent" id="recentBlock" hidden>
+    <div class="recent__label">Свежие заказы</div>
+    <div class="recent__list" id="recentList"></div>
+  </div>
+</section>
+
+<!-- ░░░░░░░░░░ HOW ░░░░░░░░░░ -->
+<section class="how" id="how">
+  <div class="section-head">
+    <div class="section-head__kicker">МЕХАНИКА</div>
+    <h2 class="section-head__title">Как <span class="rainbow-text">САСНЫЙ</span> алгоритм видит видео</h2>
+  </div>
+  <ol class="how__steps">
+    <li class="step"><div class="step__num">01</div><div class="step__icon">⬇️</div><h3>Скачиваем источник</h3><p>Берём видео в максимальном доступном качестве до 1080p и вытаскиваем авто-субтитры (русский и английский).</p></li>
+    <li class="step"><div class="step__num">02</div><div class="step__icon">🧠</div><h3>Читаем как человек</h3><p>Реплики взвешиваются по эмоциональной плотности: исповедь, шутка, боль, спор, поворот истории. Плюс твоё описание — редкие слова весят больше частых.</p></li>
+    <li class="step"><div class="step__num">03</div><div class="step__icon">✂️</div><h3>Режем по фразам</h3><p>Каждый клип ≤ 30 секунд, границы идут по естественным паузам речи — никаких обрубленных слов.</p></li>
+    <li class="step"><div class="step__num">04</div><div class="step__icon">💬</div><h3>Вшиваем жирные субтитры</h3><p>Белый жирный шрифт на полупрозрачной плашке, снизу по центру. Читается даже без звука в ленте.</p></li>
+  </ol>
+</section>
+
+<!-- ░░░░░░░░░░ FAQ ░░░░░░░░░░ -->
+<section class="faq" id="faq">
+  <div class="section-head">
+    <div class="section-head__kicker">БЕЗ ВОДЫ</div>
+    <h2 class="section-head__title">Частые <span class="rainbow-text">вопросы</span></h2>
+  </div>
+  <div class="faq__list">
+    <details class="qa" open>
+      <summary>Можно ли указать конкретный момент, который нужен?</summary>
+      <p>Да. В поле под ссылкой напиши, что искать — хоть «хабиб про Конора», хоть «про бой с Тибау». Если момент есть в видео, он попадёт в выдачу и будет отмечен бейджом <b>🎯 По запросу</b>. Если такого момента нет — сайт честно скажет об этом и нарежет то, что считает сильнейшим.</p>
+    </details>
+    <details class="qa">
+      <summary>Какие видео поддерживаются?</summary>
+      <p>Любые YouTube-ролики со скачиваемыми субтитрами или авто-субтитрами (рус/англ): интервью, подкасты, пресс-конференции, реакции. Чем длиннее и эмоциональнее видео, тем точнее выбор моментов.</p>
+    </details>
+    <details class="qa">
+      <summary>Можно ли использовать нарезки везде?</summary>
+      <p>Клипы — для личного пользования и добросовестного цитирования. Права на исходное видео принадлежат автору; публикуя нарезки, указывай источник. Демо-режим использует синтетическое интервью, созданное нейросетью, — ни одного реального человека там нет.</p>
+    </details>
+    <details class="qa">
+      <summary>А если хочу больше «человеческого» понимания?</summary>
+      <p>Задай переменные <code>OPENAI_API_KEY</code> или <code>ANTHROPIC_API_KEY</code> — анализ моментов переедет на большую языковую модель, которая понимает контекст «хабиб про Конора» даже без прямых слов. Без ключей работает встроенный офлайн-анализатор.</p>
+    </details>
+  </div>
+</section>
+</main>
+
+<!-- ░░░░░░░░░░ FOOTER ░░░░░░░░░░ -->
+<footer class="footer">
+  <div class="footer__inner">
+    <div class="footer__brand">
+      <img src="/assets/emblem.png" alt="" class="footer__emblem" />
+      <div>
+        <div class="rainbow-text footer__wordmark">NAREZKA SASNOGO</div>
+        <div class="footer__tag">Нарезай сильно. Режь точно. Свети радугой.</div>
+      </div>
+    </div>
+    <div class="footer__meta">
+      <span>Нарезки ≤ 30 сек · субтитры жирным</span>
+      <span>·</span>
+      <span>Уважай авторские права</span>
+    </div>
+  </div>
+</footer>
+
+<script src="/js/app.js"></script>
+</body>
+</html>
