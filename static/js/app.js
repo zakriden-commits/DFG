@@ -19,6 +19,19 @@ const THEME_COLORS = {
 
 const els = {
   form: $("#jobForm"),
+  sourceTabs: $$(".source-tab"),
+  youtubePanel: $("#youtubePanel"),
+  uploadPanel: $("#uploadPanel"),
+  videoFileInput: $("#videoFileInput"),
+  captionsFileInput: $("#captionsFileInput"),
+  videoFileRow: $("#videoFileRow"),
+  videoFileName: $("#videoFileName"),
+  videoFileSize: $("#videoFileSize"),
+  videoFileRemove: $("#videoFileRemove"),
+  captionsFileRow: $("#captionsFileRow"),
+  captionsFileName: $("#captionsFileName"),
+  captionsFileRemove: $("#captionsFileRemove"),
+  switchToUploadBtn: $("#switchToUploadBtn"),
   url: $("#urlInput"),
   clearUrl: $("#clearUrl"),
   desc: $("#descriptionInput"),
@@ -54,6 +67,9 @@ const state = {
   currentClips: [],
   currentFilter: "all",
   lastJobId: null,
+  source: "youtube",
+  videoFile: null,
+  captionsFile: null,
 };
 
 const escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({
@@ -78,6 +94,69 @@ $$(".chip", els.chips).forEach((chip) => {
     els.desc.value = chip.dataset.q || chip.textContent.trim();
     els.desc.focus();
   });
+});
+
+function setSource(source) {
+  state.source = source;
+  els.sourceTabs.forEach((tab) => {
+    const active = tab.dataset.source === source;
+    tab.classList.toggle("is-active", active);
+    tab.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  els.youtubePanel.hidden = source !== "youtube";
+  els.uploadPanel.hidden = source !== "upload";
+  els.url.required = source === "youtube";
+}
+els.sourceTabs.forEach((tab) => tab.addEventListener("click", () => setSource(tab.dataset.source)));
+els.switchToUploadBtn.addEventListener("click", () => {
+  els.errorBox.hidden = true;
+  setSource("upload");
+  els.videoFileInput.click();
+});
+
+const fmtBytes = (n) => {
+  if (!n) return "0 МБ";
+  const mb = n / (1024 * 1024);
+  return mb >= 1024 ? `${(mb / 1024).toFixed(2)} ГБ` : `${Math.max(1, Math.round(mb))} МБ`;
+};
+
+function wireFileInput(input, row, nameEl, sizeEl, stateKey) {
+  input.addEventListener("change", () => {
+    const file = input.files && input.files[0] ? input.files[0] : null;
+    state[stateKey] = file;
+    if (file) {
+      nameEl.textContent = file.name;
+      if (sizeEl) sizeEl.textContent = fmtBytes(file.size);
+      row.hidden = false;
+    } else {
+      row.hidden = true;
+    }
+  });
+}
+wireFileInput(els.videoFileInput, els.videoFileRow, els.videoFileName, els.videoFileSize, "videoFile");
+wireFileInput(els.captionsFileInput, els.captionsFileRow, els.captionsFileName, null, "captionsFile");
+
+els.videoFileRemove.addEventListener("click", () => {
+  els.videoFileInput.value = ""; state.videoFile = null; els.videoFileRow.hidden = true;
+});
+els.captionsFileRemove.addEventListener("click", () => {
+  els.captionsFileInput.value = ""; state.captionsFile = null; els.captionsFileRow.hidden = true;
+});
+
+// drag & drop onto the video dropzone
+const videoDrop = $("#videoDrop");
+["dragenter", "dragover"].forEach((ev) => videoDrop.addEventListener(ev, (e) => {
+  e.preventDefault(); videoDrop.classList.add("is-dragover");
+}));
+["dragleave", "drop"].forEach((ev) => videoDrop.addEventListener(ev, (e) => {
+  e.preventDefault(); videoDrop.classList.remove("is-dragover");
+}));
+videoDrop.addEventListener("drop", (e) => {
+  const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) {
+    els.videoFileInput.files = e.dataTransfer.files;
+    els.videoFileInput.dispatchEvent(new Event("change"));
+  }
 });
 
 els.clearUrl.addEventListener("click", () => { els.url.value = ""; els.url.focus(); });
@@ -183,11 +262,51 @@ function showError(message) {
   els.errorText.textContent = message;
 }
 
+async function submitUploadJob(description) {
+  if (!state.videoFile) {
+    els.videoFileInput.click();
+    return;
+  }
+  resetPanels();
+  els.progressPanel.hidden = false;
+  els.console.textContent = "";
+  els.progressFill.style.width = "2%";
+  els.progressPct.textContent = "0%";
+  els.progressMessage.textContent = "Загружаю видео на сервер…";
+  els.cancelHintBtn.hidden = false;
+  renderStageList(0);
+  setBusy(true);
+
+  const formData = new FormData();
+  formData.append("video", state.videoFile);
+  if (state.captionsFile) formData.append("captions", state.captionsFile);
+  formData.append("description", description);
+  formData.append("clip_count", String(state.clipCount));
+
+  let jobId = null;
+  try {
+    const resp = await fetch("/api/jobs/upload", { method: "POST", body: formData });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.detail || `Ошибка сервера (${resp.status})`);
+    jobId = data.job_id;
+    state.lastJobId = jobId;
+  } catch (err) {
+    showError(err.message || String(err));
+    return;
+  }
+  pollJob(jobId);
+}
+
 els.form.addEventListener("submit", (e) => {
   e.preventDefault();
+  const description = els.desc.value.trim();
+  if (state.source === "upload") {
+    submitUploadJob(description);
+    return;
+  }
   const url = els.url.value.trim();
   if (!url) { els.url.focus(); return; }
-  submitJob(url, els.desc.value.trim());
+  submitJob(url, description);
 });
 
 els.demoBtn.addEventListener("click", () => {
@@ -285,7 +404,9 @@ async function refreshRecent() {
     if (!jobs.length) { els.recentBlock.hidden = true; return; }
     els.recentBlock.hidden = false;
     els.recentList.innerHTML = jobs.slice(0, 8).map((j) => {
-      const urlLabel = j.url === "demo" ? "Демо: синтетическое интервью" : j.url.replace(/^https?:\/\/(www\.)?/, "");
+      const urlLabel = j.url === "demo"
+        ? "Демо: синтетическое интервью"
+        : (j.url.startsWith("upload:") ? "📄 " + j.url.slice(7) : j.url.replace(/^https?:\/\/(www\.)?/, ""));
       const desc = j.description ? `«${j.description.slice(0, 60)}${j.description.length > 60 ? "…" : ""}» · ` : "";
       return `<button class="recent-chip" data-job="${escapeHtml(j.id)}">
         <span class="recent-chip__url">${escapeHtml(urlLabel)}</span>

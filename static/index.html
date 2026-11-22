@@ -62,15 +62,49 @@
     <div class="tool-card__inner">
       <form id="jobForm" autocomplete="off">
         <!-- step 1 -->
-        <label class="field">
-          <span class="field__label"><i>1</i> Ссылка на YouTube-видео</span>
-          <div class="field__control field__control--url">
-            <svg viewBox="0 0 24 24" class="yt-glyph" aria-hidden="true"><path fill="currentColor" d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
-            <input id="urlInput" name="url" type="url" inputmode="url" required spellcheck="false"
-                   placeholder="https://www.youtube.com/watch?v=…  или  youtu.be/…" />
-            <button type="button" id="clearUrl" class="field__clear" title="Очистить" aria-label="Очистить">✕</button>
+        <div class="field">
+          <span class="field__label"><i>1</i> Откуда берём видео</span>
+          <div class="source-tabs" role="tablist" aria-label="Источник видео">
+            <button type="button" class="source-tab is-active" id="tabYoutube" role="tab" aria-selected="true" data-source="youtube">📺 Ссылка YouTube</button>
+            <button type="button" class="source-tab" id="tabUpload" role="tab" aria-selected="false" data-source="upload">📁 Файл с компьютера</button>
           </div>
-        </label>
+
+          <div id="youtubePanel" role="tabpanel">
+            <div class="field__control field__control--url">
+              <svg viewBox="0 0 24 24" class="yt-glyph" aria-hidden="true"><path fill="currentColor" d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+              <input id="urlInput" name="url" type="url" inputmode="url" required spellcheck="false"
+                     placeholder="https://www.youtube.com/watch?v=…  или  youtu.be/…" />
+              <button type="button" id="clearUrl" class="field__clear" title="Очистить" aria-label="Очистить">✕</button>
+            </div>
+          </div>
+
+          <div id="uploadPanel" role="tabpanel" hidden>
+            <label class="dropzone" id="videoDrop" for="videoFileInput">
+              <input type="file" id="videoFileInput" name="video" accept="video/*,.mkv,.avi,.m4v" hidden />
+              <div class="dropzone__icon">🎬</div>
+              <div class="dropzone__text"><b>Перетащи видео сюда</b><br />или нажми, чтобы выбрать</div>
+              <div class="dropzone__hint">mp4 · mov · mkv · webm — до 2 ГБ</div>
+            </label>
+            <div class="file-row" id="videoFileRow" hidden>
+              <span class="file-row__icon">🎞️</span>
+              <span class="file-row__name" id="videoFileName"></span>
+              <span class="file-row__size" id="videoFileSize"></span>
+              <button type="button" class="file-row__remove" id="videoFileRemove" aria-label="Убрать файл">✕</button>
+            </div>
+            <label class="dropzone dropzone--mini" id="captionsDrop" for="captionsFileInput">
+              <input type="file" id="captionsFileInput" name="captions" accept=".srt,.vtt" hidden />
+              <span class="dropzone__mini-icon">💬</span>
+              <span><b>Субтитры (.srt / .vtt)</b> — необязательно</span>
+            </label>
+            <div class="file-row" id="captionsFileRow" hidden>
+              <span class="file-row__icon">💬</span>
+              <span class="file-row__name" id="captionsFileName"></span>
+              <button type="button" class="file-row__remove" id="captionsFileRemove" aria-label="Убрать субтитры">✕</button>
+            </div>
+            <p class="field__hint">Как забрать видео с YouTube — любым привычным способом. Без субтитров тоже можно:
+              поставь <code>WHISPER_MODEL=small</code> — речь распознается локально при загрузке.</p>
+          </div>
+        </div>
 
         <!-- step 2 -->
         <label class="field">
@@ -109,7 +143,7 @@
         <div class="divider"><span>или</span></div>
 
         <button type="button" id="demoBtn" class="btn btn--demo">
-          ▶ Мгновенное демо: синтетическое интервью в стиле Хабиба <span class="btn--demo__note">(AI-голос, 3 мин)</span>
+          ▶ Мгновенное демо без YouTube: синтетическое интервью в стиле Хабиба <span class="btn--demo__note">(AI-голос, 3 мин)</span>
         </button>
       </form>
 
@@ -126,7 +160,10 @@
       <div class="errorbox" id="errorBox" hidden>
         <div class="errorbox__title">😵 Что-то пошло не так</div>
         <div class="errorbox__text" id="errorText"></div>
-        <button type="button" class="btn btn--ghost btn--small" id="retryBtn">Попробовать ещё раз</button>
+        <div class="errorbox__actions">
+          <button type="button" class="btn btn--ghost btn--small" id="retryBtn">Попробовать ещё раз</button>
+          <button type="button" class="btn btn--demo btn--small" id="switchToUploadBtn">⬇ YouTube недоступен? Загрузи файлом</button>
+        </div>
       </div>
     </div>
   </div>
@@ -192,6 +229,10 @@
     <details class="qa" open>
       <summary>Можно ли указать конкретный момент, который нужен?</summary>
       <p>Да. В поле под ссылкой напиши, что искать — хоть «хабиб про Конора», хоть «про бой с Тибау». Если момент есть в видео, он попадёт в выдачу и будет отмечен бейджом <b>🎯 По запросу</b>. Если такого момента нет — сайт честно скажет об этом и нарежет то, что считает сильнейшим.</p>
+    </details>
+    <details class="qa">
+      <summary>YouTube пишет «нет доступа / ошибка сети» — что делать?</summary>
+      <p>Два пути. Первый: запусти сайт у себя (<code>./run.sh</code> или Docker) — дома YouTube доступен, и ссылка сработает как в демо. Второй: скачай видео любым способом и загрузи во вкладке <b>«Файл с компьютера»</b> — можно приложить субтитры <code>.srt</code>/<code>.vtt</code>, а без них включить авто-распознавание через <code>WHISPER_MODEL=small</code>.</p>
     </details>
     <details class="qa">
       <summary>Какие видео поддерживаются?</summary>

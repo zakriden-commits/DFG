@@ -6,6 +6,7 @@ frontend can poll /api/jobs/{id}.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -42,6 +43,66 @@ def _probe_duration(path: Path) -> float:
         return 0.0
     h, mnt, s, cs = m.groups()
     return int(h) * 3600 + int(mnt) * 60 + int(s) + int(cs) / 100.0
+
+
+def _parse_captions_file(path: Path) -> List[Dict]:
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    segments = parse_vtt(text)
+    if not segments:
+        raise PipelineError(f"Не удалось разобрать субтитры из {path.name} — нужен .srt или .vtt.")
+    return segments
+
+
+def _transcribe_whisper(src: Path, job_id: str) -> List[Dict]:
+    """Optional local transcription for uploaded videos without subtitles.
+
+    Enabled via env: WHISPER_MODEL=small|base|tiny (pip install faster-whisper).
+    """
+    model_name = os.environ.get("WHISPER_MODEL", "").strip()
+    if not model_name:
+        raise PipelineError(
+            "У загруженного видео нет субтитров. Что можно сделать:\n"
+            "1) приложи файл субтитров (.srt/.vtt) при загрузке — самый быстрый путь;\n"
+            "2) или поставь WHISPER_MODEL=small (pip install faster-whisper) — сайт сам "
+            "распознает речь локально;\n"
+            "3) или запусти сервис локально и вставляй ссылку на YouTube — там есть авто-субтитры.")
+    try:
+        from faster_whisper import WhisperModel  # type: ignore
+    except ImportError as exc:
+        raise PipelineError("WHISPER_MODEL задан, но faster-whisper не установлен: pip install faster-whisper") from exc
+    db.log_job(job_id, f"Распознаю речь локально (whisper {model_name})…")
+    _set(job_id, "transcript", 32, f"Распознаю речь локально (whisper {model_name})…")
+    language = os.environ.get("WHISPER_LANG", "ru")
+    model = WhisperModel(model_name, device="cpu", compute_type="int8")
+    segments_iter, _info = model.transcribe(str(src), language=language, vad_filter=True,
+                                            beam_size=5)
+    segments: List[Dict] = []
+    for s in segments_iter:
+        text = (s.text or "").strip()
+        if text:
+            segments.append({"start": round(float(s.start), 2),
+                             "end": round(float(s.end), 2),
+                             "text": text})
+    if not segments:
+        raise PipelineError("Whisper не распознал речь — видео без речи?")
+    return segments
+
+
+def _local_source(job_id: str, local: Dict) -> tuple[Path, List[Dict], float, str]:
+    src = Path(local["video"])
+    if not src.exists() or src.stat().st_size < 10_000:
+        raise PipelineError("Загруженный видеофайл не найден или пустой.")
+    title = local.get("title") or src.stem
+
+    captions = local.get("srt")
+    if captions:
+        cap = Path(captions)
+        segments = _parse_captions_file(cap)
+        db.log_job(job_id, f"Субтитры из файла: {cap.name} ({len(segments)} реплик)")
+    else:
+        segments = _transcribe_whisper(src, job_id)
+    duration = _probe_duration(src) or (segments[-1]["end"] if segments else 0.0)
+    return src, segments, duration, title
 
 
 # ---------------------------------------------------------------- download
@@ -89,7 +150,8 @@ def _download_youtube(job_id: str, url: str, workdir: Path) -> tuple[Path, List[
         msg = str(exc)
         hint = ""
         if any(k in msg for k in ("urlopen", "timed out", "EOF", "Connection", "resolve", "network")):
-            hint = " Похоже, сервер без доступа к YouTube — запусти сервис локально (README)."
+            hint = (" Похоже, сервер без доступа к YouTube. Запусти сервис локально (./run.sh) — "
+                    "или скачай видео сам и загрузи во вкладке «Файл с компьютера».")
         elif "Subtitles" in msg or "subtitle" in msg.lower():
             hint = " У видео нет субтитров — попробуй другое видео с авто-субтитрами."
         raise PipelineError(f"Не удалось скачать видео: {msg[:300]}.{hint}") from exc
@@ -154,7 +216,8 @@ def _thumbnail(src: Path, at: float, out: Path) -> None:
 
 # ---------------------------------------------------------------- main entry
 
-def run_job(job_id: str, url: str, description: str, clip_count: int) -> None:
+def run_job(job_id: str, url: str, description: str, clip_count: int,
+            local: Optional[Dict] = None) -> None:
     job_dir = MEDIA_DIR / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
     workdir = DOWNLOAD_DIR / job_id
@@ -162,7 +225,10 @@ def run_job(job_id: str, url: str, description: str, clip_count: int) -> None:
     try:
         _set(job_id, "download", 2, "Готовлю видео…")
 
-        if url.strip().lower() == "demo":
+        if local:
+            _set(job_id, "download", 30, "Видеофайл получен, готовлю субтитры…")
+            src, segments, duration, title = _local_source(job_id, local)
+        elif url.strip().lower() == "demo":
             from .demo import ensure_demo
             db.log_job(job_id, "Демо-режим: собираю синтетическое интервью…")
             src, segments, duration = ensure_demo()
@@ -229,7 +295,8 @@ def run_job(job_id: str, url: str, description: str, clip_count: int) -> None:
         shutil.rmtree(workdir, ignore_errors=True)
 
 
-def start_job_thread(job_id: str, url: str, description: str, clip_count: int) -> None:
-    t = threading.Thread(target=run_job, args=(job_id, url, description, clip_count),
+def start_job_thread(job_id: str, url: str, description: str, clip_count: int,
+                     local: Optional[Dict] = None) -> None:
+    t = threading.Thread(target=run_job, args=(job_id, url, description, clip_count, local),
                          name=f"job-{job_id}", daemon=True)
     t.start()

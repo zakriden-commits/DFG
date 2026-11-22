@@ -8,6 +8,24 @@
 
 ---
 
+## ⚠️ YouTube из песочницы/сервера без доступа — читай сначала
+
+Если при вставке ссылки видишь `Unable to download API page ... TLS/SSL EOF` —
+это не баг сайта: у хостинга нет сетевого доступа к YouTube (проверено: youtube.com,
+youtu.be, googlevideo.com, ytimg — все закрыты). Решений три, выбери любое:
+
+1. **Запусти сайт у себя** — дома YouTube доступен:
+   ```bash
+   ./run.sh          # или Docker (см. ниже)
+   ```
+   и ставь ссылки на видео — всё качается и режется локально.
+2. **Скачай видео любым способом** (yt-dlp на своей машине, сервисы) и загрузи
+   файл во вкладке **«📁 Файл с компьютера»** на сайте. К видео можно приложить
+   субтитры `.srt/.vtt`; без них включи авто-распознавание:
+   `WHISPER_MODEL=small ./run.sh` (нужен `pip install faster-whisper`).
+3. **Google Drive**: положи видео в свой Drive и скажи ассистенту название файла —
+   он скачает его (до 100 МБ) и прогонит через нарезку прямо в этой среде.
+
 ## Быстрый старт
 
 ```bash
@@ -72,9 +90,29 @@ Debian/Ubuntu: `sudo apt install fonts-dejavu-core` (обычно уже сто�
 | `NAREZKA_DATA` | Куда складывать скачанные видео и клипы (по умолчанию `./data`) |
 | `PORT` | Порт для `run.sh` (по умолчанию `8000`) |
 
+### Способ 2 — загрузка файла (без YouTube)
+
+Вкладка **«📁 Файл с компьютера»** на сайте, или напрямую:
+
+```bash
+curl -X POST http://localhost:8000/api/jobs/upload \
+  -F "video=@interview.mp4" \
+  -F "captions=@interview.srt" \   # необязательно
+  -F "description=хабиб про Конора" \
+  -F "clip_count=8"
+```
+
+Переменные для распознавания речи локально (для видео без субтитров):
+
+| Переменная | Значение |
+|---|---|
+| `WHISPER_MODEL` | `tiny` / `base` / `small` — включить локальное распознавание (по умолчанию выкл) |
+| `WHISPER_LANG` | язык речи, по умолчанию `ru` |
+
 ### API (кратко)
 
-- `POST /api/jobs` `{url, description?, clip_count?}` → `{job_id}` — создать нарезки
+- `POST /api/jobs` `{url, description?, clip_count?}` → `{job_id}` — создать нарезки из YouTube
+- `POST /api/jobs/upload` (multipart: `video`, `captions?`, `description?`, `clip_count?`) → `{job_id}` — создать нарезки из файла
 - `GET /api/jobs/{id}` → прогресс, лог и (когда готово) `result.clips[]`
 - `GET /api/jobs` → последние задания
 - Клипы раздаются с `/media/<job_id>/clip_01.mp4`
