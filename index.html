@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DFG — fighter · run & ragdoll-fall</title>
+<style>
+  :root {
+    --bg: #07090f;
+    --panel: rgba(13, 17, 27, 0.82);
+    --panel-border: rgba(120, 160, 220, 0.22);
+    --accent: #ff4a3d;
+    --accent-soft: #ff7a4d;
+    --text: #e8ecf5;
+    --muted: #8b94a8;
+    --line: rgba(140, 160, 200, 0.18);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; }
+  #app { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+  canvas#stage { display: block; width: 100%; height: 100%; }
+  .hud { position: absolute; inset: 0; pointer-events: none; }
+  .hud .panel { pointer-events: auto; }
+  header {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 10; pointer-events: none;
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 22px 28px;
+  }
+  .brand { pointer-events: auto; }
+  .brand .kicker { font-size: 11px; letter-spacing: 0.34em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+  .brand h1 { font-size: 22px; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+  .brand h1 .accent { color: var(--accent); }
+  .badge {
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    background: rgba(255, 74, 61, 0.12); color: #ffb6ad;
+    border: 1px solid rgba(255, 74, 61, 0.35); padding: 6px 12px; border-radius: 999px;
+    display: inline-flex; align-items: center; gap: 8px; pointer-events: auto;
+  }
+  .badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.78); } }
+  .controls {
+    position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 10;
+    display: flex; align-items: stretch; gap: 12px; pointer-events: auto;
+    background: var(--panel); border: 1px solid var(--panel-border); border-radius: 18px; padding: 12px;
+    backdrop-filter: blur(14px); box-shadow: 0 18px 50px rgba(0,0,0,0.5);
+    max-width: calc(100vw - 36px); flex-wrap: wrap; justify-content: center;
+  }
+  .btn {
+    appearance: none; border: 1px solid var(--line); background: rgba(20, 26, 40, 0.85); color: var(--text);
+    border-radius: 12px; padding: 11px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 9px; transition: all .18s ease; letter-spacing: 0.02em;
+  }
+  .btn:hover { background: rgba(34, 42, 64, 0.95); border-color: rgba(160, 190, 255, 0.35); transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+  .btn .ico { font-size: 15px; line-height: 1; }
+  .btn-primary { background: linear-gradient(150deg, #ff4a3d, #c8262e); border-color: rgba(255, 120, 90, 0.55); color: #fff; box-shadow: 0 8px 24px rgba(255, 74, 61, 0.28); }
+  .btn-primary:hover { background: linear-gradient(150deg, #ff5d4f, #da2c3a); box-shadow: 0 12px 30px rgba(255, 74, 61, 0.38); }
+  .sep { width: 1px; background: var(--line); margin: 4px 2px; align-self: stretch; }
+  .readout {
+    min-width: 128px; display: flex; flex-direction: column; justify-content: center; padding: 0 6px;
+  }
+  .readout .k { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
+  .readout .v { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: #fff; margin-top: 2px; }
+  .readout .v small { font-size: 11px; color: var(--muted); font-weight: 500; margin-left: 4px; }
+  .hint {
+    position: absolute; right: 24px; bottom: 26px; z-index: 9; text-align: right;
+    font-size: 11px; color: var(--muted); line-height: 1.6; pointer-events: none; letter-spacing: 0.03em;
+  }
+  .hint kbd { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); border-radius: 5px; padding: 1px 6px; font-family: inherit; font-size: 10px; }
+  .loading {
+    position: absolute; inset: 0; display: flex; flex-direction: column; gap: 14px;
+    align-items: center; justify-content: center; background: var(--bg); z-index: 50; color: var(--muted);
+  }
+  .loading .ring { width: 46px; height: 46px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--accent); animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error { color: #ffb6ad; background: linear-gradient(180deg, rgba(90,12,15,0.9), rgba(40,6,9,0.9)); border: 1px solid rgba(255,120,90,0.4); padding: 14px 18px; border-radius: 12px; margin: 0 auto; max-width: 520px; text-align: center; line-height: 1.55; }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="stage"></canvas>
+  <div class="hud"></div>
+  <header>
+    <div class="brand">
+      <p class="kicker">Skeleton rig · GLB</p>
+      <h1>Fighter <span class="accent">— run &amp; ragdoll-fall</span></h1>
+    </div>
+    <div class="badge"><span class="dot"></span><span id="stateLabel">RUN</span></div>
+  </header>
+
+  <div class="controls panel" role="toolbar" aria-label="Animations">
+    <button class="btn" id="btnPlay" aria-pressed="true"><span class="ico">❚❚</span><span>Пауза</span></button>
+    <button class="btn btn-primary" id="btnFall"><span class="ico">▼</span><span>Падение (регдолл)</span></button>
+    <button class="btn" id="btnReset" title="Вернуть в стартовую позу"><span class="ico">↺</span><span>Сброс</span></button>
+    <div class="sep"></div>
+    <div class="readout">
+      <span class="k">Анимация</span>
+      <span class="v" id="readoutClip">run</span>
+    </div>
+    <div class="readout">
+      <span class="k">Шаг</span>
+      <span class="v"><span id="readoutTime">0.00</span><small>с</small></span>
+    </div>
+    <div class="readout">
+      <span class="k">Кости</span>
+      <span class="v">17</span>
+    </div>
+  </div>
+
+  <div class="hint">
+    Перетаскивайте мышь — орбита<br>
+    Колесо мыши — масштаб<br>
+    <kbd>Пробел</kbd> пауза · <kbd>F</kbd> падение · <kbd>R</kbd> сброс
+  </div>
+
+  <div class="loading" id="loading">
+    <div class="ring"></div>
+    <div>Загружаю модель…</div>
+  </div>
+  <div class="loading" id="error" style="display:none"><div class="error" id="errorBox">Не удалось загрузить модель.</div></div>
+</div>
+
+<script type="module">
+import * as THREE from './vendor/three.module.js';
+import { GLTFLoader } from './scripts/vendor-GLTFLoader.js';
+
+const canvas = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x07090f);
+scene.fog = new THREE.Fog(0x07090f, 7.5, 16);
+
+const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 100);
+camera.position.set(2.15, 0.55, 2.75);
+
+// Orbit controls (minimal, no damping, no pan)
+const orbit = { theta: 0.62, phi: 1.22, radius: 3.6, target: new THREE.Vector3(0, 0.18, 0) };
+function updateCamera() {
+  const { theta, phi, radius, target } = orbit;
+  camera.position.set(
+    target.x + radius * Math.sin(phi) * Math.sin(theta),
+    target.y + radius * Math.cos(phi),
+    target.z + radius * Math.sin(phi) * Math.cos(theta)
+  );
+  camera.lookAt(target);
+}
+let dragging = false, lastX = 0, lastY = 0;
+canvas.addEventListener('pointerdown', (e) => { dragging = true; lastX = e.clientX; lastY = e.clientY; canvas.setPointerCapture(e.pointerId); });
+window.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  const dx = e.clientX - lastX, dy = e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  orbit.theta -= dx * 0.0055;
+  orbit.phi = Math.max(0.35, Math.min(1.45, orbit.phi - dy * 0.0045));
+  updateCamera();
+});
+window.addEventListener('pointerup', () => { dragging = false; });
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  orbit.radius = Math.max(1.6, Math.min(7.5, orbit.radius + e.deltaY * 0.0035));
+  updateCamera();
+}, { passive: false });
+
+// Lights
+scene.add(new THREE.AmbientLight(0x404a66, 1.25));
+const key = new THREE.DirectionalLight(0xfff0e0, 2.6);
+key.position.set(2.6, 4.0, 2.4);
+key.castShadow = true;
+key.shadow.mapSize.set(1024, 1024);
+key.shadow.camera.near = 0.5; key.shadow.camera.far = 14;
+key.shadow.camera.left = -3; key.shadow.camera.right = 3;
+key.shadow.camera.top = 3; key.shadow.camera.bottom = -3;
+key.shadow.bias = -0.0005;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x5aa0ff, 1.7);
+rim.position.set(-3.2, 2.2, -2.6);
+scene.add(rim);
+const fill = new THREE.DirectionalLight(0xffffff, 0.55);
+fill.position.set(-1.4, 1.0, 3.2);
+scene.add(fill);
+
+// Ground
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(40, 40),
+  new THREE.ShadowMaterial({ opacity: 0.42 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -1.02;
+ground.receiveShadow = true;
+scene.add(ground);
+
+const grid = new THREE.GridHelper(9, 45, 0x1c2433, 0x11161f);
+grid.position.y = -1.02;
+grid.material.transparent = true;
+grid.material.opacity = 0.85;
+scene.add(grid);
+
+// Backdrop gradient sphere is left to renderer background
+const loader = new GLTFLoader();
+const loadingEl = document.getElementById('loading');
+const errorEl = document.getElementById('error');
+
+const stateLabel = document.getElementById('stateLabel');
+const readoutClip = document.getElementById('readoutClip');
+const readoutTime = document.getElementById('readoutTime');
+const btnPlay = document.getElementById('btnPlay');
+const btnFall = document.getElementById('btnFall');
+const btnReset = document.getElementById('btnReset');
+
+let modelRoot = null;
+let clips = {};
+let mixer = null;
+let runAction = null, fallAction = null;
+let playing = true;
+let previousClipName = 'run';
+
+loader.load('./assets/fighter-ragdoll.glb', (gltf) => {
+  modelRoot = gltf.scene;
+  scene.add(modelRoot);
+  modelRoot.traverse((o) => {
+    if (o.isMesh || o.isSkinnedMesh) {
+      o.castShadow = true;
+      o.receiveShadow = false;
+    }
+  });
+
+  clips = {};
+  for (const clip of gltf.animations) clips[clip.name] = clip;
+
+  mixer = new THREE.AnimationMixer(modelRoot);
+
+  runAction = mixer.clipAction(clips.run);
+  runAction.setLoop(THREE.LoopRepeat, Infinity);
+  runAction.setEffectiveTimeScale(1.1);
+  runAction.play();
+
+  fallAction = mixer.clipAction(clips.fall);
+  fallAction.setLoop(THREE.LoopOnce, 1);
+  fallAction.clampWhenFinished = true;
+  fallAction.setEffectiveTimeScale(1.0);
+
+  const runClipName = clips.run ? 'run' : null;
+  previousClipName = runClipName;
+  readoutClip.textContent = previousClipName;
+  stateLabel.textContent = 'RUN';
+  btnPlay.querySelector('span:last-child').textContent = 'Пауза';
+  btnPlay.setAttribute('aria-pressed', 'true');
+
+  loadingEl.style.display = 'none';
+  animate();
+}, undefined, (err) => {
+  console.error(err);
+  loadingEl.style.display = 'none';
+  errorEl.style.display = 'flex';
+});
+
+btnPlay.addEventListener('click', () => {
+  playing = !playing;
+  if (fallAction && fallAction.isRunning && !playing) {
+    // pause fall too
+    fallAction.paused = true;
+  } else if (playing && fallAction && fallAction.isRunning) {
+    fallAction.paused = false;
+  } else if (runAction) {
+    runAction.paused = !playing;
+  }
+  btnPlay.setAttribute('aria-pressed', String(playing));
+  btnPlay.querySelector('span:last-child').textContent = playing ? 'Пауза' : 'Играть';
+  btnPlay.querySelector('.ico').textContent = playing ? '❚❚' : '▶';
+});
+
+btnFall.addEventListener('click', () => {
+  if (!fallAction || !clips.fall) return;
+  if (runAction) runAction.stop();
+  fallAction.reset();
+  fallAction.paused = false;
+  fallAction.play();
+  playing = false; // Pause run-time visual except fall
+  btnPlay.querySelector('span:last-child').textContent = 'Пауза';
+  btnPlay.querySelector('.ico').textContent = '❚❚';
+  stateLabel.textContent = 'FALL';
+  readoutClip.textContent = 'fall';
+});
+
+btnReset.addEventListener('click', () => {
+  if (!runAction || !fallAction) return;
+  fallAction.stop();
+  fallAction.paused = false;
+  fallAction.reset();
+  runAction.stop();
+  runAction.paused = false;
+  runAction.enabled = true;
+  runAction.reset();
+  runAction.play();
+  playing = true;
+  previousClipName = 'run';
+  stateLabel.textContent = 'RUN';
+  readoutClip.textContent = 'run';
+  btnPlay.setAttribute('aria-pressed', 'true');
+  btnPlay.querySelector('span:last-child').textContent = 'Пауза';
+  btnPlay.querySelector('.ico').textContent = '❚❚';
+});
+
+// Fall completion: reset to run after fall finishes (user can still re-trigger)
+if (typeof window !== 'undefined') {
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') { e.preventDefault(); btnPlay.click(); }
+    else if (e.code === 'KeyF') { btnFall.click(); }
+    else if (e.code === 'KeyR') { btnReset.click(); }
+  });
+}
+
+// Animation lifecycle events (after load)
+function wireFallCompletion() {
+  if (!fallAction) return;
+  fallAction.addEventListener('finished', () => {
+    if (stateLabel.textContent === 'FALL') {
+      stateLabel.textContent = 'DONE';
+      // Fade fall back to RUN after short pause (user can re-fall)
+      setTimeout(() => {
+        if (stateLabel.textContent === 'DONE') {
+          btnReset.click();
+        }
+      }, 1100);
+    }
+  });
+}
+
+let clock = new THREE.Clock();
+let rafId = null;
+
+function animate() {
+  if (rafId) cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (mixer) {
+    mixer.update(dt);
+    if (runAction && runAction.isRunning) readoutTime.textContent = (runAction.time).toFixed(2);
+    else if (fallAction && fallAction.isRunning) readoutTime.textContent = (fallAction.time).toFixed(2);
+  }
+  renderer.render(scene, camera);
+}
+
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+// load completion hook for fall event wiring
+const observer = new MutationObserver(() => {
+  if (loadingEl.style.display === 'none') {
+    wireFallCompletion();
+    observer.disconnect();
+  }
+});
+observer.observe(loadingEl, { attributes: true, attributeFilter: ['style'] });
+</script>
+</body>
+</html>

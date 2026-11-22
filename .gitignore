@@ -1,0 +1,9 @@
+# Source downloads (not for VCS)
+google_drive/
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
